@@ -5,25 +5,11 @@
 #include <cstring>
 #include<qfileinfo.h>
 #include<cassert>
+#include"helpfulTypes.h"
 //应当保证每次调用get返回的字符串都是不变的
-using my_size = unsigned long;
-template<class T>
-using Vector = std::vector<T>;
-class CharWrapper {
-protected:
-	const unsigned long _length;
-public:
-	
-	CharWrapper(my_size l):_length(l) {};
-	const my_size length() { return _length;};
-	virtual const char* getCharArray() = 0;
-	
-	virtual ~CharWrapper() {};
-};
-using ContentRes = std::unique_ptr<CharWrapper>;
 
-using uniqueCharArray = std::unique_ptr<char[]>;
-uniqueCharArray charArrayFromQString(const QString s);
+using my_size = unsigned long;
+
 class CodeAnalyzer {
 public:
 	class M_File {
@@ -96,8 +82,7 @@ private:
 	NameMap nameMap;
 	
 public:
-	CodeAnalyzer() {
-	};
+	CodeAnalyzer();
 	enum fileType {
 		isMainFile,
 		notMainFile
@@ -109,6 +94,17 @@ public:
 		}
 		files.push_back(std::move(file));
 	};
+	ContentRes getFileContentByaPth(QString path) {
+		for (auto& i : files) {
+			if (i->getFullPath() == path) return i->getContent();
+		}
+		assert(false);
+		return ContentRes();
+	}
+	ContentRes getFileContentByIndex(int i) {
+		assert(i < files.size());
+		return files[i]->getContent();
+	}
 	int getMainIndex() {
 		assert(main != nullptr);
 		for (int i = 0; i < files.size(); i++){
@@ -116,6 +112,13 @@ public:
 				return i;
 		}
 		assert(false);
+		return 0;
 	}
 	void parseNames();
+private:
+	class Visitor;
+	friend class Visitor;
+	std::unique_ptr<Visitor> _visitor;
+public:
+	~CodeAnalyzer();
 };

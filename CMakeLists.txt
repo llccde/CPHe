@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(CPHe LANGUAGES CXX)
-
+cmake_policy(SET CMP0077 NEW)
+variable_watch(CMAKE_MSVC_RUNTIME_LIBRARY)
 include(qt.cmake)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -15,12 +16,9 @@ find_package(Qt${QT_VERSION_MAJOR}
 )
 qt_standard_project_setup()
 
-# LLVM 支持
-list(APPEND CMAKE_PREFIX_PATH "E:/LIBS/LLVM/lib/cmake/llvm")
-find_package(LLVM REQUIRED CONFIG)
 
 # 添加 clang 支持（通常 clang 的 cmake 文件在同一 LLVM 安装目录下）
-list(APPEND CMAKE_PREFIX_PATH "E:/LIBS/LLVM/lib/cmake/clang")
+list(APPEND CMAKE_PREFIX_PATH "E:/LIBS/clang+llvm-18.1.8-x86_64-pc-windows-msvc/lib/cmake/clang")
 find_package(Clang REQUIRED CONFIG)
 
 
@@ -32,6 +30,7 @@ set(ROOT_SOURCES
 )
 
 # 创建主可执行目标
+
 qt_add_executable(${PROJECT_NAME} ${ROOT_SOURCES})
 
 # 添加子目录
@@ -45,15 +44,9 @@ set_target_properties(${PROJECT_NAME}
 )
 
 # LLVM 和 clang 头文件
-target_include_directories(${PROJECT_NAME} PRIVATE ${LLVM_INCLUDE_DIRS})
+#target_include_directories(${PROJECT_NAME} PRIVATE ${LLVM_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CLANG_INCLUDE_DIRS})
 
-# 链接库（优先使用 CMake 目标）
-if(TARGET LLVM::LLVM)
-    target_link_libraries(${PROJECT_NAME} PRIVATE LLVM::LLVM)
-else()
-    target_link_libraries(${PROJECT_NAME} PRIVATE ${LLVM_LIBRARIES})
-endif()
 
 if(TARGET libclang)
     target_link_libraries(${PROJECT_NAME} PRIVATE libclang)

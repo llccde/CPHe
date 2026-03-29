@@ -2,12 +2,11 @@
 #include <clang-c/Index.h>
 #include<functional>
 #include<iostream>
+#include"helpfulTypes.h"
+#include"codeVisitor.h"
 CodeAnalyzer::NameMapNode CodeAnalyzer::NameMapNode::unAvailableNode("", CodeAnalyzer::NameMapNode::unAvailable);
 
-template <class T> 
-using delType = std::function<void(T*)>;
-template<class T>
-using UniqueResOf = std::unique_ptr<T,delType<T>>;
+
 static void printDiagnostics(CXTranslationUnit tu) {
 	unsigned numDiags = clang_getNumDiagnostics(tu);
 	for (unsigned i = 0; i < numDiags; ++i) {
@@ -17,6 +16,11 @@ static void printDiagnostics(CXTranslationUnit tu) {
 		clang_disposeString(msg);
 		clang_disposeDiagnostic(diag);
 	}
+}
+
+CodeAnalyzer::CodeAnalyzer():_visitor(new Visitor())
+{
+	
 }
 void CodeAnalyzer::parseNames(){
 	int size = files.size();
@@ -57,30 +61,17 @@ void CodeAnalyzer::parseNames(){
 	CXCursor cursor = clang_getTranslationUnitCursor(*tu);
 	clang_visitChildren(
 		cursor,
-		[](CXCursor cursor, CXCursor /*parent*/, CXClientData /*clientData*/) {
-			// 获取游标的显示名称（如函数名、变量名、类名等）
-			UniqueResOf<CXString> name(new CXString, [](CXString* s) {
-					clang_disposeString(*s);
-				});
-			*name = clang_getCursorSpelling(cursor);
-
-			const char* cname = clang_getCString(*name);
-
-			if (cname && *cname) {                     // 只输出有名称的节点
-				std::cout << cname << std::endl;
-			}
-			// 继续遍历子节点
-			return CXChildVisit_Recurse;
+		[](CXCursor cursor, CXCursor p2, CXClientData _this) {
+			return static_cast<CodeAnalyzer::Visitor*>(_this)->cursorVisitor(cursor, p2);
 		},
-		nullptr
+		static_cast<void*>(this->_visitor.get())
 	);
 	
 	
 }
 
-uniqueCharArray charArrayFromQString(const QString s){
-	QByteArray ba = s.toUtf8();
-	auto data = std::make_unique<char[]>(ba.size() + 1);
-	std::strcpy(data.get(), ba.constData());
-	return data;
-};
+CodeAnalyzer::~CodeAnalyzer()
+{
+}
+
+

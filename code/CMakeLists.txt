@@ -4,4 +4,5 @@ target_sources(${PROJECT_NAME} PRIVATE
     testclass.h
     CodeAnalyzer.h
     CodeAnalyzer.cpp
-)
+    "helpfulTypes.h" 
+    "codeVisitor.h")
