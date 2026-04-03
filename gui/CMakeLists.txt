@@ -3,4 +3,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     CPHeMain.cpp
     CPHeMain.h
     CPHeMain.ui
+    NameMapView.cpp
+    NameMapView.h
+    NameMapView.ui
+
 )

@@ -1,0 +1,14 @@
+E:/cpp/qt/CPHe/build/unknown-Release/CMakeFiles/intrinsics_gen.dir
+E:/cpp/qt/CPHe/build/unknown-Release/CMakeFiles/omp_gen.dir
+E:/cpp/qt/CPHe/build/unknown-Release/CMakeFiles/acc_gen.dir
+E:/cpp/qt/CPHe/build/unknown-Release/CMakeFiles/RISCVTargetParserTableGen.dir
+E:/cpp/qt/CPHe/build/unknown-Release/CMakeFiles/clang-tablegen-targets.dir
+E:/cpp/qt/CPHe/build/unknown-Release/CMakeFiles/CPHe.dir
+E:/cpp/qt/CPHe/build/unknown-Release/CMakeFiles/edit_cache.dir
+E:/cpp/qt/CPHe/build/unknown-Release/CMakeFiles/rebuild_cache.dir
+E:/cpp/qt/CPHe/build/unknown-Release/CMakeFiles/CPHe_autogen_timestamp_deps.dir
+E:/cpp/qt/CPHe/build/unknown-Release/CMakeFiles/CPHe_autogen.dir
+E:/cpp/qt/CPHe/build/unknown-Release/gui/CMakeFiles/edit_cache.dir
+E:/cpp/qt/CPHe/build/unknown-Release/gui/CMakeFiles/rebuild_cache.dir
+E:/cpp/qt/CPHe/build/unknown-Release/code/CMakeFiles/edit_cache.dir
+E:/cpp/qt/CPHe/build/unknown-Release/code/CMakeFiles/rebuild_cache.dir

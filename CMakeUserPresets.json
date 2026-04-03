@@ -13,6 +13,17 @@
       ]
     },
     {
+      "name": "release-x64",
+      "displayName": "release (x64)",
+      "binaryDir": "${sourceDir}/out/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      },
+      "inherits": [
+        "Qt-Default"
+      ]
+    },
+    {
       "hidden": true,
       "name": "Qt-Default",
       "inherits": "6.9.3_msvc2022_64",

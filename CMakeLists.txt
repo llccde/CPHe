@@ -16,12 +16,21 @@ find_package(Qt${QT_VERSION_MAJOR}
 )
 qt_standard_project_setup()
 
+# 添加 LLVM 和 Clang 的 CMake 路径（根据实际安装路径调整）
+list(APPEND CMAKE_PREFIX_PATH 
+    "E:/LIBS/clang+llvm-18.1.8-x86_64-pc-windows-msvc/lib/cmake/llvm"
+    "E:/LIBS/clang+llvm-18.1.8-x86_64-pc-windows-msvc/lib/cmake/clang"
+)
+link_directories(D:/visualStudio/DIA SDK/lib/amd64)
 
-# 添加 clang 支持（通常 clang 的 cmake 文件在同一 LLVM 安装目录下）
-list(APPEND CMAKE_PREFIX_PATH "E:/LIBS/clang+llvm-18.1.8-x86_64-pc-windows-msvc/lib/cmake/clang")
+# 查找 LLVM
+find_package(LLVM REQUIRED CONFIG)
+
+# 查找 Clang
 find_package(Clang REQUIRED CONFIG)
 
-
+# 获取 LLVM 组件库列表（例如 clangFormat）
+#llvm_map_components_to_libnames(LLVM_LIBS clangFormat)
 
 # 根目录源文件
 set(ROOT_SOURCES
@@ -30,32 +39,30 @@ set(ROOT_SOURCES
 )
 
 # 创建主可执行目标
-
 qt_add_executable(${PROJECT_NAME} ${ROOT_SOURCES})
 
 # 添加子目录
 add_subdirectory(gui)
 add_subdirectory(code)
-
+add_subdirectory(GUIInterface)
 # 目标属性
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
         WIN32_EXECUTABLE FALSE
 )
 
-# LLVM 和 clang 头文件
-#target_include_directories(${PROJECT_NAME} PRIVATE ${LLVM_INCLUDE_DIRS})
-target_include_directories(${PROJECT_NAME} PRIVATE ${CLANG_INCLUDE_DIRS})
+# 包含目录（LLVM 和 Clang 的头文件）
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    ${LLVM_INCLUDE_DIRS}
+    ${CLANG_INCLUDE_DIRS}
+)
 
-
-if(TARGET libclang)
-    target_link_libraries(${PROJECT_NAME} PRIVATE libclang)
-else()
-    target_link_libraries(${PROJECT_NAME} PRIVATE ${CLANG_LIBRARIES})
-endif()
-
-# Qt 链接
+# 链接库
 target_link_libraries(${PROJECT_NAME}
+    PRIVATE
+        ${LLVM_LIBS}          # 例如 clangFormat
+        libclang
+        clangFormat
     PUBLIC
         Qt::Core
         Qt::Gui

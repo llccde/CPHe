@@ -4,5 +4,18 @@ target_sources(${PROJECT_NAME} PRIVATE
     testclass.h
     CodeAnalyzer.h
     CodeAnalyzer.cpp
+    "CppCodeVisitor.cpp"
     "helpfulTypes.h" 
-    "codeVisitor.h")
+    "CppCodeVisitor.h" 
+    "tools.h" 
+    "tools.cpp" 
+    "CodeFileReader.h" 
+    "CodeFileReader.cpp" 
+    "CppCodeFileReader.h" 
+    "CppCodeFileReader.cpp" 
+    "libClangContext.h" 
+    "libClangContext.cpp" 
+    "NameTree.h" 
+    "NameTree.cpp" 
+    "BaseCodeVisitor.h" 
+    "BaseCodeVisitor.cpp")

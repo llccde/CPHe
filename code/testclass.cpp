@@ -15,5 +15,7 @@ namespace  myName{
 			};
 			return innerClass()(a);
 		}
+		int func2();
 	};
 }
+int myName::myClass::func2() { return 1; }
