@@ -1,4 +1,4 @@
-#include "CPHeMain.h"
+﻿#include "CPHeMain.h"
 
 CPHeMain::CPHeMain(QWidget *parent)
     : QMainWindow(parent)

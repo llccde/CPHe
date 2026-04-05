@@ -1,4 +1,4 @@
-namespace myName {
+﻿namespace myName {
 	class myClass;
 }
 namespace  myName{

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include"helpfulTypes.h"
 #include"qstring.h"
 QString readContentFromPosition(const CodePosition & pos);

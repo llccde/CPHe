@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include"helpfulTypes.h"
 #include"qfileinfo.h"
 class M_File {

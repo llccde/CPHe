@@ -1,4 +1,4 @@
-#include "NameMapView.h"
+﻿#include "NameMapView.h"
 
 NameMapView::NameMapView(QWidget *parent)
 	: QWidget(parent)

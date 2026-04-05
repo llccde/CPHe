@@ -1,8 +1,8 @@
-#include "gui/CPHeMain.h"
+﻿#include "gui/CPHeMain.h"
 #include <QtWidgets/QApplication>
 #include "code/CodeAnalyzer.h"
 
-// libclang ͷ�ļ�
+// libclang 头文件
 #include <clang-c/Index.h>
 #include <iostream>
 #include<qfile.h>
@@ -17,7 +17,7 @@
 #include"CppCodeVisitor.h"
 class QFileReader :public M_File {
     class My_Content :public CharWrapper {
-        // ͨ�� CharWrapper �̳�
+        // 通过 CharWrapper 继承
         uniqueCharArray res;
     public:
         My_Content(my_size length,char*&& data):CharWrapper(length),res(data) {

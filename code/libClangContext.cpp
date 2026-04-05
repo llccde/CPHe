@@ -1,4 +1,4 @@
-#include "libClangContext.h"
+ï»¿#include "libClangContext.h"
 #include <clang-c/Index.h>
 #include<iostream>
 static void printDiagnostics(CXTranslationUnit tu) {
@@ -75,8 +75,8 @@ LibClangIndexAndTranslationUnit::LibClangIndexAndTranslationUnit(LibClangContext
 	clang_parseTranslationUnit2(
 		*index,
 		data->paths[data->mainIndex].get(),
-		nullptr, 0,              // ÃüÁîĞĞ²ÎÊı£¨¿É¿Õ£©
-		data->unsaveFilesCache.get(), data->fileNum,        // Ìá¹© unsaved files Êı×é
+		nullptr, 0,              // å‘½ä»¤è¡Œå‚æ•°ï¼ˆå¯ç©ºï¼‰
+		data->unsaveFilesCache.get(), data->fileNum,        // æä¾› unsaved files æ•°ç»„
 		CXTranslationUnit_None, tu.get()
 	);
 	if (!*tu) {

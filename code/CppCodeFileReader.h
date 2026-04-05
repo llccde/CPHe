@@ -1,10 +1,10 @@
-#pragma once
+ï»¿#pragma once
 #include"CodeFileReader.h"
 #include"qvector.h"
 #include"qstring.h"
 #include"helpfulTypes.h"
 class CppCodeFileReader :public CodeFileReader {
-	// Í¨¹ý CodeFileReader ¼Ì³Ð
+	// é€šè¿‡ CodeFileReader ç»§æ‰¿
 	
 	Vector<QString> buffer;
 	bool formatIndent = false;

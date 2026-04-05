@@ -1,4 +1,4 @@
-#include <QFile>
+﻿#include <QFile>
 #include <QTextStream>
 #include <QString>
 

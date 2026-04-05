@@ -1,10 +1,10 @@
-#include"NameTree.h"
+ï»¿#include"NameTree.h"
 #include<iostream>
 
 void NameMapNode::outputNameMap(int level)
 {
 	for (size_t i = 0; i < level; i++) {
-		std::cout << "   ";//Èý¸ö¿Õ¸ñÒ»¼¶
+		std::cout << "   ";//ä¸‰ä¸ªç©ºæ ¼ä¸€çº§
 	}
 	std::cout << myName.toStdString() << "\n";
 	for (auto& i : children) {

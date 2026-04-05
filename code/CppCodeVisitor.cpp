@@ -1,10 +1,11 @@
-#include "CppCodeVisitor.h"
+ï»¿#include "CppCodeVisitor.h"
 #include <cassert>
 #include <iostream>
 #include <QMessageBox>
 #include"CodeAnalyzer.h"
 #include <clang-c/Index.h>
-// ¸¨Öúº¯ÊýÊµÏÖ
+
+// è¾…åŠ©å‡½æ•°å®žçŽ°
 
 inline QString CXStringToQString(CXString str) {
     QString result = QString::fromUtf8(clang_getCString(str));
@@ -12,7 +13,7 @@ inline QString CXStringToQString(CXString str) {
     return result;
 }
 
-// QStringPool ÊµÏÖ
+// QStringPool å®žçŽ°
 poolID QStringPool::add(const QString& s) {
     for (size_t i = 0; i < strings.size(); ++i) {
         if (strings[i] == s) return static_cast<poolID>(i);
@@ -25,7 +26,7 @@ QString& QStringPool::get(poolID i) {
     return strings[i];
 }
 
-// CodeScope ÊµÏÖ
+// CodeScope å®žçŽ°
 CodeScope::CodeScope(const CXCursor& cursor, QStringPool* pool)
     : FileNamePool(pool) {
     CXSourceRange extent = clang_getCursorExtent(cursor);
@@ -80,7 +81,7 @@ QString CodeScope::getFileName() {
     return FileNamePool->get(fileBeginName);
 }
 
-// Identifier ÊµÏÖ
+// Identifier å®žçŽ°
 Identifier::Identifier(CXCursor cursor) {
 
     this->name = CXStringToQString(clang_getCursorSpelling(cursor));
@@ -101,7 +102,7 @@ bool Identifier::hasName() {
     return name.length() > 0;
 }
 
-// CodeNode ÊµÏÖ
+// CodeNode å®žçŽ°
 CodeNode::CodeNode() : isRoot(true) {}
 
 CodeNode CodeNode::getRoot() {
@@ -142,9 +143,9 @@ void CodeNode::sink_impl(CodeNode*&& node) {
     }
 }
 
-// CppNameMapNode ÊµÏÖ
-CppNameMapNode::CppNameMapNode(QString name, const CodeNode* node)
-    : NameMapNode(name, (node->getIsRoot() ? NameMapNode::root : NameMapNode::normal)),
+// CppNameMapNode å®žçŽ°
+CppNameMapNode::CppNameMapNode(QString name, const CodeNode* node, QStringPool* pool)
+    : NameMapNode(name, (node->getIsRoot() ? NameMapNode::root : NameMapNode::normal)),pool(pool),
     isRoot(node->getIsRoot()) {
     if (!isRoot) {
         mypos = CodePosition("", node->cs.rowBegin, node->cs.columnBegin,
@@ -152,9 +153,8 @@ CppNameMapNode::CppNameMapNode(QString name, const CodeNode* node)
     }
 }
 
-QString* CppNameMapNode::getMyFileName() {
-    if (refParentFileName) return myParentFileName;
-     else return &myFileName;
+QString CppNameMapNode::getMyFileName() {
+    return pool->get(fileID);
 }
 
 bool CppNameMapNode::GetIsRoot() {
@@ -163,24 +163,14 @@ bool CppNameMapNode::GetIsRoot() {
 
 void CppNameMapNode::setFile(QString myFileName) {
     assert(!isRoot);
-    this->myFileName = myFileName;
+    this->fileID = pool->add(myFileName);
 }
 
-void CppNameMapNode::setFile(QString* fileNameRef) {
-    assert(!isRoot);
-    this->myParentFileName = fileNameRef;
-    refParentFileName = true;
-}
 
 CodePosition CppNameMapNode::getPosition() {
     assert(!isRoot);
     CodePosition pos = mypos;
-    if (refParentFileName) {
-        pos.file = *myParentFileName;
-    }
-    else {
-        pos.file = myFileName;
-    }
+    pos.file = pool->get(fileID);
     return pos;
 }
 
@@ -199,24 +189,19 @@ CXChildVisitResult CPPCodeVisitor::cursorVisitor(CXCursor cursor, CXCursor /*par
 }
 
 
-NameMap* CPPCodeVisitor::getNameMap() {
-    CppNameMapNode* root = new CppNameMapNode("", &rootNode);
+std::unique_ptr<NameMap> CPPCodeVisitor::getNameMap() {
+    CppNameMapNode* root = new CppNameMapNode("", &rootNode,&this->pool);
     for (auto& i : rootNode.beContaineds) {
         preOrderDFS_NameMapBuild(root, i.get());
     }
-    return root;
+    return std::unique_ptr<NameMap>(root);
 }
 
 void CPPCodeVisitor::preOrderDFS_NameMapBuild(CppNameMapNode* parent, CodeNode* _this) {
     auto childNameNode = parent;
     if (_this->isNameNode()) {
-        auto NewNode = new CppNameMapNode(_this->id.name, _this);
-        if (parent->GetIsRoot()) {
-            NewNode->setFile(_this->cs.getFileName());
-        }
-        else {
-            NewNode->setFile(parent->getMyFileName());
-        }
+        auto NewNode = new CppNameMapNode(_this->id.name, _this, &this->pool);
+        NewNode->setFile(_this->cs.getFileName());
         childNameNode = NewNode;
         parent->add(std::move(NewNode));
     }
