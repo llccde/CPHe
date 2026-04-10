@@ -89,17 +89,12 @@ void CppCodeFileReader::handleIndent()
 
     // 配置 clang-format 风格
     clang::format::FormatStyle style = clang::format::getLLVMStyle();
-    // 根据 indentString 设置缩进宽度（假设 indentString 由空格组成）
-    // 如果 indentString 包含制表符，则设置 UseTab = UT_Always
+    // 根据 indentString 设置缩进宽度
+    // 如果 indentString 包含制表符
     style.IndentWidth = indentLength;
-    //if (indentString.contains('\t')) {
-    //    style.UseTab = clang::format::FormatStyle::UT_Always;
-    //    // 如果同时包含空格和制表符，可能还需进一步处理，这里简化
-    //}
-    // 其他常用选项（可根据需要调整）
+
     style.ColumnLimit = 0;       // 不限制行宽
-    style.BreakBeforeBraces = clang::format::FormatStyle::BS_Allman; // 大括号换行风格（可自定义）
-    // 可在此处添加更多风格设置，例如基于 indentString 设定 TabWidth 等
+    style.BreakBeforeBraces = clang::format::FormatStyle::BS_Allman;
 
     
     auto replacement = clang::format::reformat(
@@ -125,9 +120,9 @@ void CppCodeFileReader::handleIndent()
         }
     }
     else {
-        // 格式化失败，保留原始内容（不处理）
+        //错误处理
         llvm::handleAllErrors(formatted.takeError(), [](const llvm::ErrorInfoBase& E) {
-            // 可以添加日志输出
+           
             qDebug() << "Clang-format error:" << E.message().c_str();
             });
     }

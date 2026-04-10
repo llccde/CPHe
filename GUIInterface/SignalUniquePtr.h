@@ -50,14 +50,13 @@ public:
         return *this;
     }
 
-    void reset(pointer ptr = nullptr)
+    void resetAsync(pointer ptr = nullptr)
     {
-        reset(std::unique_ptr<T>(ptr));
+        resetAsync(std::unique_ptr<T>(ptr));
     }
 
-    void reset(std::unique_ptr<T>&& newPtr)
+    void resetAsync(std::unique_ptr<T>&& newPtr)
     {
-
         QMetaObject::invokeMethod(helper.get(),
             [this, ptr = std::move(newPtr)]() mutable {
                 res = std::move(ptr);

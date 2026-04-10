@@ -1,6 +1,8 @@
 ﻿#pragma once
 #include"helpfulTypes.h"
 #include"qvector.h"
+#include<concepts>
+#include <type_traits>
 class NameMapNode;
 using UniqueNameMapPtr = std::unique_ptr<NameMapNode>;
 
@@ -27,9 +29,6 @@ public:
 		children.push_back(std::move(p));
 
 	}
-	void add(NameMapNode*&& node) {
-		children.push_back(UniqueNameMapPtr(node));
-	};
 
 	NameMapNode* operator[](int index) {
 		assert(index < children.size());
@@ -57,9 +56,12 @@ public:
 		}
 		return result;
 	};
-
+	bool isRoot() {
+		return state == root;
+	}
+	virtual ~NameMapNode() = default;
 	void outputNameMap(int level = 0);
-	virtual CodePosition getPosition() = 0;
+	virtual CodePosition getPosition() { assert(false);return CodePosition(); };
 protected:
 	virtual void findNodeByNameSpace_impl(QVector<QString> path, Vector<NameMapNode*>& result) {
 		if (path.size() > 0) {
@@ -87,4 +89,17 @@ protected:
 	}
 
 };
+class NameMapResPack {
+	std::unique_ptr<NameMapNode>root;
+public:
+	NameMapResPack() :root(new NameMapNode("", NameMapNode::root)) {
+	}
+	NameMapNode* getRoot() {
+		return root.get();
+	}
+
+	virtual ~NameMapResPack() = default;
+
+};
+using NameMapResPackPtr = std::unique_ptr<NameMapResPack>;
 using NameMap = NameMapNode;

@@ -3,7 +3,7 @@
 #include <clang-c/Index.h>
 class NameMapNode;
 using NameMap = NameMapNode;
-
+class NameMapResPack;
 class BaseVisitor {
 public:
 	virtual ~BaseVisitor() = default;
@@ -12,5 +12,5 @@ public:
 	virtual CXChildVisitResult cursorVisitor(CXCursor cursor, CXCursor parent) = 0;
 
 	// 纯虚函数：获取构建好的名称树
-	virtual std::unique_ptr<NameMap> getNameMap() = 0;
+	virtual std::unique_ptr<NameMapResPack> getNameMap() = 0;
 };

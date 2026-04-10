@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+ï»¿cmake_minimum_required(VERSION 3.16)
 project(CPHe LANGUAGES CXX)
 cmake_policy(SET CMP0077 NEW)
 variable_watch(CMAKE_MSVC_RUNTIME_LIBRARY)
@@ -7,6 +7,7 @@ include(qt.cmake)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR}
     COMPONENTS
@@ -16,51 +17,58 @@ find_package(Qt${QT_VERSION_MAJOR}
 )
 qt_standard_project_setup()
 
-# Ìí¼Ó LLVM ºÍ Clang µÄ CMake Â·¾¶£¨¸ù¾İÊµ¼Ê°²×°Â·¾¶µ÷Õû£©
-list(APPEND CMAKE_PREFIX_PATH 
-    "E:/LIBS/clang+llvm-18.1.8-x86_64-pc-windows-msvc/lib/cmake/llvm"
-    "E:/LIBS/clang+llvm-18.1.8-x86_64-pc-windows-msvc/lib/cmake/clang"
-)
-link_directories(D:/visualStudio/DIA SDK/lib/amd64)
+# æ·»åŠ  LLVM å’Œ Clang çš„ CMake è·¯å¾„
+if(WIN32)
+    # Windows ä¸‹æ·»åŠ è‡ªå®šä¹‰ LLVM å’Œ Clang è·¯å¾„
+    list(APPEND CMAKE_PREFIX_PATH 
+        "E:/LIBS/clang+llvm-18.1.8-x86_64-pc-windows-msvc/lib/cmake/llvm"
+        "E:/LIBS/clang+llvm-18.1.8-x86_64-pc-windows-msvc/lib/cmake/clang"
+    )
+    #link_directories(D:/visualStudio/DIA SDK/lib/amd64)
+elseif(UNIX)
+   
+endif()
 
-# ²éÕÒ LLVM
+
+# æŸ¥æ‰¾ LLVM
 find_package(LLVM REQUIRED CONFIG)
 
-# ²éÕÒ Clang
+# æŸ¥æ‰¾ Clang
 find_package(Clang REQUIRED CONFIG)
 
-# »ñÈ¡ LLVM ×é¼ş¿âÁĞ±í£¨ÀıÈç clangFormat£©
+# è·å– LLVM ç»„ä»¶åº“åˆ—è¡¨
 #llvm_map_components_to_libnames(LLVM_LIBS clangFormat)
 
-# ¸ùÄ¿Â¼Ô´ÎÄ¼ş
+# æ ¹ç›®å½•æºæ–‡ä»¶
 set(ROOT_SOURCES
+    MainClass.h
     main.cpp
     CPHe.rc
 )
 
-# ´´½¨Ö÷¿ÉÖ´ĞĞÄ¿±ê
+# åˆ›å»ºä¸»å¯æ‰§è¡Œç›®æ ‡
 qt_add_executable(${PROJECT_NAME} ${ROOT_SOURCES})
 
-# Ìí¼Ó×ÓÄ¿Â¼
+# æ·»åŠ å­ç›®å½•
 add_subdirectory(gui)
 add_subdirectory(code)
 add_subdirectory(GUIInterface)
-# Ä¿±êÊôĞÔ
+# ç›®æ ‡å±æ€§
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
         WIN32_EXECUTABLE FALSE
 )
 
-# °üº¬Ä¿Â¼£¨LLVM ºÍ Clang µÄÍ·ÎÄ¼ş£©
+# åŒ…å«ç›®å½•ï¼ˆLLVM å’Œ Clang çš„å¤´æ–‡ä»¶ï¼‰
 target_include_directories(${PROJECT_NAME} PRIVATE 
     ${LLVM_INCLUDE_DIRS}
     ${CLANG_INCLUDE_DIRS}
 )
 
-# Á´½Ó¿â
+# é“¾æ¥åº“
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
-        ${LLVM_LIBS}          # ÀıÈç clangFormat
+        ${LLVM_LIBS}          # ä¾‹å¦‚ clangFormat
         libclang
         clangFormat
     PUBLIC

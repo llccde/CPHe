@@ -18,4 +18,4 @@ target_sources(${PROJECT_NAME} PRIVATE
     "NameTree.h" 
     "NameTree.cpp" 
     "BaseCodeVisitor.h" 
-    "BaseCodeVisitor.cpp")
+    "BaseCodeVisitor.cpp" "QFileReader.h")

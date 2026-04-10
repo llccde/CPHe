@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>600</width>
-    <height>400</height>
+    <width>705</width>
+    <height>449</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -29,6 +29,29 @@
         <property name="text">
          <string>load</string>
         </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QListView" name="loadedFiles"/>
+      </item>
+      <item>
+       <widget class="QWidget" name="widget_2" native="true">
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <widget class="QPushButton" name="setMainFileButton">
+           <property name="text">
+            <string>set main file</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="removeLoadedFileButton">
+           <property name="text">
+            <string>remove</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
       <item>

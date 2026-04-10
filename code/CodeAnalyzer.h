@@ -13,10 +13,9 @@ class LibClangContext;
 class CodeAnalyzer {
 public:
 private:
-	std::unique_ptr<LibClangContext> libClangContext;
+	LibClangContext* libClangContext;
 public:
-	CodeAnalyzer(std::unique_ptr<LibClangContext>);
-	LibClangContext* getLibClangContext() { return libClangContext.get();}
+	CodeAnalyzer(LibClangContext*);
 
 	void launch(BaseVisitor* visitor);
 

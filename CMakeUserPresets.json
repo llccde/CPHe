@@ -1,4 +1,4 @@
-{
+﻿{
   "version": 3,
   "configurePresets": [
     {
@@ -13,11 +13,14 @@
       ]
     },
     {
-      "name": "release-x64",
-      "displayName": "release (x64)",
-      "binaryDir": "${sourceDir}/out/build/release",
+      "name": "RelWithDebInfo-x64",
+      "displayName": "RelWithDebInfo (x64)",
+      "binaryDir": "${sourceDir}/out/build/RelWithDebInfo",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "/Od /Zi /UNDEBUG",
+        "CMAKE_C_FLAGS_RELWITHDEBINFO": "/Od /Zi /UNDEBUG"
+
       },
       "inherits": [
         "Qt-Default"

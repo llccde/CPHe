@@ -3,10 +3,14 @@
 #include <QBrush>
 #include <QFont>
 
-NameViewTreeModel::NameViewTreeModel(SignalUniquePtr<NameMapNode>& rootNode, QObject* parent)
+NameViewTreeModel::NameViewTreeModel(SignalUniquePtr<NameMapResPack>& rootNode, QObject* parent)
     : QAbstractItemModel(parent)
     , rootNode(rootNode)
 {
+    rootNode.connectDataChanged(this, [this]() {
+        refresh();
+        this->rootNode->getRoot()->outputNameMap();
+    });
 }
 
 void NameViewTreeModel::refresh()
@@ -43,7 +47,7 @@ QModelIndex NameViewTreeModel::parent(const QModelIndex& child) const
         return QModelIndex();
 
     NameMapNode* parentNode = childNode->getParent();  // 注意：根节点的 parent 应为 nullptr
-    if (!parentNode || rootNode == parentNode)         // 根节点的父级返回无效索引
+    if (!parentNode || rootNode->getRoot() == parentNode)         // 根节点的父级返回无效索引
         return QModelIndex();
 
     // 找到 parentNode 在其父节点中的行号
@@ -57,7 +61,7 @@ int NameViewTreeModel::rowCount(const QModelIndex& parent) const
         return 0;
 
     if (!parent.isValid())
-        return rootNode->childrenNum();   // 顶层项数量
+        return rootNode->getRoot()->childrenNum();   // 顶层项数量
 
     NameMapNode* parentNode = nodeFromIndex(parent);
     return parentNode ? parentNode->childrenNum() : 0;
@@ -117,7 +121,7 @@ QVariant NameViewTreeModel::headerData(int section, Qt::Orientation orientation,
 NameMapNode* NameViewTreeModel::nodeFromIndex(const QModelIndex& index) const
 {
     if (!index.isValid())
-        return rootNode.get();          // 无效索引视为根节点（用于 rowCount 等）
+        return rootNode->getRoot();          // 无效索引视为根节点（用于 rowCount 等）
     return static_cast<NameMapNode*>(index.internalPointer());
 }
 

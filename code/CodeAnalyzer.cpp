@@ -7,16 +7,13 @@
 #include"libClangContext.h"
 #include"NameTree.h"
 
-CodeAnalyzer::CodeAnalyzer(std::unique_ptr<LibClangContext> context):
-	libClangContext(std::move(context))
+CodeAnalyzer::CodeAnalyzer(LibClangContext* context):
+	libClangContext(context)
 {
 	
 }
-//一个对象只能调用一次
+
 void CodeAnalyzer::launch(BaseVisitor* _visitor){
-
-	assert(!hasParseName);
-
 	auto cachePack = libClangContext->getFileCache();
 	auto unit = cachePack->getUnit();
 	CXCursor cursor = clang_getTranslationUnitCursor(*(unit.tu));

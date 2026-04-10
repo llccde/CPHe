@@ -63,7 +63,18 @@ public:
 		isMainFile,
 		notMainFile
 	};
+	void clear() {
+		main = nullptr;
+		files.clear();
+	};
+	bool includeFile(M_File* F) {
+		for (auto& i : files) {
+			if (i->getFullPath() == F->getFullPath()) return true;
+		}
+		return false;
+	}
 	void addFile(UniqueFilePtr file, fileType isMain = notMainFile) {
+		assert(!includeFile(file.get()));
 		if (isMain == isMainFile) {
 			assert(main == nullptr);
 			main = file.get();

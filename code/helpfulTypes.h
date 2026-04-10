@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include<functional>
 #include<memory>
 #include<qbytearray.h>
@@ -41,5 +41,11 @@ struct CodePosition {
 
 	CodePosition(const QString& file, unsigned rowBegin, unsigned columBegin, unsigned rowEnd, unsigned columnEnd)
 		: file(file), rowBegin(rowBegin), columBegin(columBegin), rowEnd(rowEnd), columnEnd(columnEnd){}
-	CodePosition() {};
+	CodePosition() {
+		rowBegin = 0;
+		columBegin = 0;
+		rowEnd = 0;
+		columnEnd = 0;
+		file = "Root";
+	};
 };

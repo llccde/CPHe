@@ -9,9 +9,9 @@
 class NameViewTreeModel : public QAbstractItemModel {
     Q_OBJECT
 private:
-    SignalUniquePtr<NameMapNode>& rootNode;
+    SignalUniquePtr<NameMapResPack>& rootNode;
 public:
-    explicit NameViewTreeModel(SignalUniquePtr<NameMapNode>& root, QObject* parent = nullptr);
+    explicit NameViewTreeModel(SignalUniquePtr<NameMapResPack>& root, QObject* parent = nullptr);
     ~NameViewTreeModel() override = default;
 
     // 强制重新加载整个模型（当外部修改了节点结构时调用）

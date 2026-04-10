@@ -22,7 +22,7 @@ poolID QStringPool::add(const QString& s) {
     return static_cast<poolID>(strings.size() - 1);
 }
 
-QString& QStringPool::get(poolID i) {
+QString QStringPool::get(poolID i) const{
     return strings[i];
 }
 
@@ -77,7 +77,7 @@ QString CodeScope::toString() const {
         .arg(rowEnd).arg(columnEnd);
 }
 
-QString CodeScope::getFileName() {
+QString CodeScope::getFileName()const {
     return FileNamePool->get(fileBeginName);
 }
 
@@ -86,12 +86,15 @@ Identifier::Identifier(CXCursor cursor) {
 
     this->name = CXStringToQString(clang_getCursorSpelling(cursor));
     this->kind = clang_getCursorKind(cursor);
+
+    this->USR = CXStringToQString(clang_getCursorUSR(cursor));
 }
 
 QString Identifier::toString() {
-    return QString(" %1,type:%2").arg(name).arg(
-        CXStringToQString(clang_getCursorKindSpelling(kind))
-    );
+    return QString(" %1,type:%2,USR:%3")
+        .arg(name)
+        .arg(CXStringToQString(clang_getCursorKindSpelling(kind)))
+        .arg(USR);
 }
 
 bool Identifier::isDecl() {
@@ -119,93 +122,94 @@ bool CodeNode::isNameNode() {
     return id.hasName() && id.isDecl();
 }
 
-void CodeNode::sinkCallOnRoot(CodeNode*&& node) {
+void CodeNode::sinkCallOnRoot(CodeNode*&& node,CodeNode** parent) {
     assert(node != nullptr);
-    sink_impl(std::move(node));
+    sink_impl(std::move(node),parent);
 }
 
 bool CodeNode::getIsRoot() const {
     return isRoot;
 }
 
-void CodeNode::sink_impl(CodeNode*&& node) {
+void CodeNode::sink_impl(CodeNode*&& node, CodeNode** parent) {
     bool result = false;
     for (auto& child : beContaineds) {
         assert(child.get() != nullptr);
         if (child->cs.contains(node->cs)) {
-            child->sink_impl(std::move(node));
+            child->sink_impl(std::move(node),parent);
             result = true;
             break;
         }
     }
     if (!result) {
         beContaineds.push_back(std::unique_ptr<CodeNode>(node));
+        *parent = this;
     }
 }
-
+        
 // CppNameMapNode 实现
-CppNameMapNode::CppNameMapNode(QString name, const CodeNode* node, QStringPool* pool)
-    : NameMapNode(name, (node->getIsRoot() ? NameMapNode::root : NameMapNode::normal)),pool(pool),
-    isRoot(node->getIsRoot()) {
-    if (!isRoot) {
-        mypos = CodePosition("", node->cs.rowBegin, node->cs.columnBegin,
-            node->cs.rowEnd, node->cs.columnEnd);
-    }
+CppNameMapNode::CppNameMapNode(QString name, const CodeNode* node, QStringPool* pool, NameMapNode* parent)
+    : NameMapNode(name,normal,parent)
+    ,pool(pool){
+    setFile(node->cs.getFileName());
+    mypos = CodePosition("",
+        node->cs.rowBegin, node->cs.columnBegin,
+        node->cs.rowEnd, node->cs.columnEnd);
+    
 }
 
 QString CppNameMapNode::getMyFileName() {
     return pool->get(fileID);
 }
 
-bool CppNameMapNode::GetIsRoot() {
-    return isRoot;
-}
 
 void CppNameMapNode::setFile(QString myFileName) {
-    assert(!isRoot);
     this->fileID = pool->add(myFileName);
 }
 
 
 CodePosition CppNameMapNode::getPosition() {
-    assert(!isRoot);
     CodePosition pos = mypos;
     pos.file = pool->get(fileID);
     return pos;
 }
 
-CPPCodeVisitor::CPPCodeVisitor()
-    : rootNode(CodeNode::getRoot())
+CppNameMapNode::~CppNameMapNode()
 {
 }
 
-CXChildVisitResult CPPCodeVisitor::cursorVisitor(CXCursor cursor, CXCursor /*parent*/) {
+CPPCodeVisitor::CPPCodeVisitor()
+{
+}
+
+CXChildVisitResult CPPCodeVisitor::cursorVisitor(CXCursor cursor, CXCursor parent /*parent*/) {
     auto CN = new CodeNode(cursor, &this->pool);
     if (CN->isNameNode()) {
         std::cout << CN->toString().toStdString() << "\n";
     }
-    rootNode.sinkCallOnRoot(std::move(CN));
+    CodeNode* reciver;
+    rootNode.sinkCallOnRoot(std::move(CN),&reciver);
+    //reversedAST_OrderByUSR.insert({ QStringPtrKeyWrapper(&CN->id.USR),QStringPtrKeyWrapper(&reciver->id.USR)});
     return CXChildVisit_Recurse;
 }
 
 
-std::unique_ptr<NameMap> CPPCodeVisitor::getNameMap() {
-    CppNameMapNode* root = new CppNameMapNode("", &rootNode,&this->pool);
+NameMapResPackPtr CPPCodeVisitor::getNameMap() {
+    std::unique_ptr<CppNameMapResPack> resPack(new CppNameMapResPack);
     for (auto& i : rootNode.beContaineds) {
-        preOrderDFS_NameMapBuild(root, i.get());
+        preOrderDFS_NameMapBuild(resPack->getRoot(), i.get(),resPack->fileNamePool.get());
     }
-    return std::unique_ptr<NameMap>(root);
+    return resPack;
 }
 
-void CPPCodeVisitor::preOrderDFS_NameMapBuild(CppNameMapNode* parent, CodeNode* _this) {
+void CPPCodeVisitor::preOrderDFS_NameMapBuild(NameMapNode* parent, CodeNode* _this,QStringPool* pool) {
     auto childNameNode = parent;
     if (_this->isNameNode()) {
-        auto NewNode = new CppNameMapNode(_this->id.name, _this, &this->pool);
-        NewNode->setFile(_this->cs.getFileName());
-        childNameNode = NewNode;
+        auto NewNode = std::unique_ptr<NameMapNode>(new CppNameMapNode(_this->id.name, _this,pool,parent));
+        childNameNode = NewNode.get();
         parent->add(std::move(NewNode));
     }
     for (auto& i : _this->beContaineds) {
-        preOrderDFS_NameMapBuild(childNameNode, i.get());
+        preOrderDFS_NameMapBuild(childNameNode, i.get(),pool);
     }
 }
