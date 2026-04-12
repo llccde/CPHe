@@ -22,10 +22,14 @@ public:
 	QString getMyName() {
 		return myName;
 	}
+	void setParent(NameMapNode* p) {
+		this->parent = p;
+	}
 	int childrenNum() {
 		return children.size();
 	}
 	void add(UniqueNameMapPtr&& p) {
+		p->setParent(this);
 		children.push_back(std::move(p));
 
 	}
@@ -41,7 +45,7 @@ public:
 		}
 		return reslut;
 	}
-	NameMapNode(QString name = "", status state_ = normal, NameMapNode* parent = nullptr) :myName(name), state(state_), parent(parent) {
+	NameMapNode(QString name = "", status state_ = normal) :myName(name), state(state_), parent(parent) {
 	}
 	NameMapNode* getParent() {
 		assert(parent != nullptr);

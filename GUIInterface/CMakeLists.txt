@@ -4,4 +4,4 @@
 target_sources(${PROJECT_NAME} PRIVATE
 NameViewTreeModel.h
 NameViewTreeModel.cpp
- "SignalUniquePtr.h" "SignalUniquePtr.cpp")
+ "SignalUniquePtr.h" "SignalUniquePtr.cpp" "CodeListModel.h" "CodeListModel.cpp" "LanguageBackend.cpp" "LanguageBackend.h")

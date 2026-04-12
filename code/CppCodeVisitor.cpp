@@ -148,8 +148,8 @@ void CodeNode::sink_impl(CodeNode*&& node, CodeNode** parent) {
 }
         
 // CppNameMapNode 实现
-CppNameMapNode::CppNameMapNode(QString name, const CodeNode* node, QStringPool* pool, NameMapNode* parent)
-    : NameMapNode(name,normal,parent)
+CppNameMapNode::CppNameMapNode(QString name, const CodeNode* node, QStringPool* pool)
+    : NameMapNode(name,normal)
     ,pool(pool){
     setFile(node->cs.getFileName());
     mypos = CodePosition("",
@@ -190,26 +190,46 @@ CXChildVisitResult CPPCodeVisitor::cursorVisitor(CXCursor cursor, CXCursor paren
     CodeNode* reciver;
     rootNode.sinkCallOnRoot(std::move(CN),&reciver);
     //reversedAST_OrderByUSR.insert({ QStringPtrKeyWrapper(&CN->id.USR),QStringPtrKeyWrapper(&reciver->id.USR)});
+
     return CXChildVisit_Recurse;
 }
 
 
 NameMapResPackPtr CPPCodeVisitor::getNameMap() {
+    std::map<QStringPtrKeyWrapper, NameMapNode*> nameNodeUSRTRecoder;
+    QString root = "root";
+    
     std::unique_ptr<CppNameMapResPack> resPack(new CppNameMapResPack);
+    nameNodeUSRTRecoder.insert({ QStringPtrKeyWrapper(&root),resPack->getRoot() });
     for (auto& i : rootNode.beContaineds) {
-        preOrderDFS_NameMapBuild(resPack->getRoot(), i.get(),resPack->fileNamePool.get());
+        preOrderDFS_NameMapBuild(resPack->getRoot(), i.get(),resPack->fileNamePool.get(),nameNodeUSRTRecoder);
     }
     return resPack;
 }
 
-void CPPCodeVisitor::preOrderDFS_NameMapBuild(NameMapNode* parent, CodeNode* _this,QStringPool* pool) {
+void CPPCodeVisitor::preOrderDFS_NameMapBuild(NameMapNode* parent, CodeNode* _this,QStringPool* pool, std::map<QStringPtrKeyWrapper, NameMapNode*>& record) {
     auto childNameNode = parent;
     if (_this->isNameNode()) {
-        auto NewNode = std::unique_ptr<NameMapNode>(new CppNameMapNode(_this->id.name, _this,pool,parent));
-        childNameNode = NewNode.get();
-        parent->add(std::move(NewNode));
+
+        
+        auto declNode = record.find(QStringPtrKeyWrapper(&_this->id.USR));
+        std::unique_ptr<NameMapNode> NewNode;
+        
+        if (declNode==record.end()) {
+            NewNode.reset(new CppNameMapNode(_this->id.name, _this, pool));
+            childNameNode = NewNode.get();
+            record.insert({QStringPtrKeyWrapper(&_this->id.USR),NewNode.get()});
+            parent->add(std::move(NewNode));
+
+        }
+        else{
+            NewNode.reset(new CppNameMapNode(_this->id.name+"(define)", _this, pool));
+            childNameNode = NewNode.get();
+            (*declNode).second->getParent()->add(std::move(NewNode));
+        }
+        
     }
     for (auto& i : _this->beContaineds) {
-        preOrderDFS_NameMapBuild(childNameNode, i.get(),pool);
+        preOrderDFS_NameMapBuild(childNameNode, i.get(),pool,record);
     }
 }

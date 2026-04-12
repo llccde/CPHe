@@ -98,7 +98,7 @@ class CppNameMapNode : public NameMapNode {
     QStringPool* pool;
 
 public:
-    explicit CppNameMapNode(QString name, const CodeNode* node, QStringPool*, NameMapNode* parent);
+    explicit CppNameMapNode(QString name, const CodeNode* node, QStringPool*);
     QString getMyFileName();
     bool GetIsRoot();
     void setFile(QString myFileName);
@@ -109,40 +109,25 @@ public:
     }
 };
 class QStringPtrKeyWrapper {
-    QString* str;
+    QString* str = nullptr;
 
 public:
+    QStringPtrKeyWrapper() {
+    };
     explicit QStringPtrKeyWrapper(QString* str) : str(str) {
         assert(str != nullptr);
     }
-
+    ~QStringPtrKeyWrapper() = default;
     QString* get() const { return str; }
 
     // unordered_map 必须
     bool operator==(const QStringPtrKeyWrapper& other) const {
         return *str == *other.str;
     }
-
-    // 以下关系运算符若需要可保留（建议同样加 const）
     bool operator<(const QStringPtrKeyWrapper& other) const {
         return *str < *other.str;
     }
 
-    bool operator!=(const QStringPtrKeyWrapper& other) const {
-        return !(*this == other);
-    }
-
-    bool operator>(const QStringPtrKeyWrapper& other) const {
-        return *str > *other.str;
-    }
-
-    bool operator<=(const QStringPtrKeyWrapper& other) const {
-        return !(*this > other);
-    }
-
-    bool operator>=(const QStringPtrKeyWrapper& other) const {
-        return !(*this < other);
-    }
 };
 class CppNameMapResPack :public NameMapResPack {
 public:
@@ -156,7 +141,8 @@ public:
 class CPPCodeVisitor : public BaseVisitor {
     using child = QStringPtrKeyWrapper;
     using parent = QStringPtrKeyWrapper;
-    //std::unordered_map<child, parent> reversedAST_OrderByUSR;
+    //std::hash<CPPCodeVisitor::child> a;
+    //std::map<child, parent> reversedAST_OrderByUSR;
 public:
 
     CPPCodeVisitor();
@@ -169,5 +155,5 @@ private:
     CodeNode rootNode = CodeNode::getRoot();   
     QStringPool pool;  
 
-    void preOrderDFS_NameMapBuild(NameMapNode* parent, CodeNode* _this,QStringPool* pool);
+    void preOrderDFS_NameMapBuild(NameMapNode* parent, CodeNode* _this,QStringPool* pool, std::map<QStringPtrKeyWrapper, NameMapNode*>&);
 };

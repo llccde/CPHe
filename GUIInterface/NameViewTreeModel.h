@@ -25,7 +25,9 @@ public:
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     Qt::ItemFlags flags(const QModelIndex& index) const override;
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
-
+    NameMapNode* getRawNode(const QModelIndex& index) {
+        return nodeFromIndex(index);
+    }
 private:
     NameMapNode* nodeFromIndex(const QModelIndex& index) const;
     int rowOfNode(NameMapNode* node) const;

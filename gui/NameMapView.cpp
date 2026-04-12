@@ -37,11 +37,13 @@ NameMapView::NameMapView(QWidget* parent)
 	ui->setupUi(this);
 	nameMap.resetSync(nullptr);
 	dataModel.reset(new NameViewTreeModel(nameMap, this));
+	codeModel.reset(new CodeListModel());
 	clangContext.reset(new LibClangContext());
 	loadedFileDelegate.reset(new HighlightDelegateOfQString());
 	ui->nameMapView->setModel(dataModel.get());
 	ui->loadedFiles->setModel(&loadedFileModel);
 	ui->loadedFiles->setItemDelegate(loadedFileDelegate.get());
+	ui->codeView->setModel(codeModel.get());
 	connect(ui->refreshButton, &QPushButton::clicked, this, [this]() {
 		loadIntoClangContext();
 		runCodeAnalyze();
@@ -64,7 +66,6 @@ NameMapView::NameMapView(QWidget* parent)
 		}
 		
 	});
-
 	connect(this, &NameMapView::currentSelectLoadedFileChanged, this, [this](int index) {
 		this->ui->removeLoadedFileButton->setEnabled(index != -1);
 
@@ -82,6 +83,12 @@ NameMapView::NameMapView(QWidget* parent)
 	});
 	connect(&loadedFileModel, &QStringListModel::dataChanged, this, [this]() {
 		this->setCurrentSelectLoadedFile(-1);
+	});
+	connect(ui->nameMapView, &QTreeView::clicked, this, [this](const QModelIndex& index) {
+		auto raw = this->dataModel->getRawNode(index);
+		auto pos = raw->getPosition();
+		std::unique_ptr<CppCodeFileReader> reader(new CppCodeFileReader(true, pos, 4));
+		codeModel->reset(std::move(reader));
 	});
 	//connect(ui->loadedFiles,&QListView)
 	
@@ -111,8 +118,6 @@ void NameMapView::runCodeAnalyze()
 	ana.launch(&cv);
 	auto resPack = cv.getNameMap();
 	nameMap.resetAsync(std::move(resPack));
-
-
 }
 
 int NameMapView::getCurrentSelectLoadedFile()

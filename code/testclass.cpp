@@ -4,6 +4,7 @@ namespace myName {
 }
 class S {};
 class myName::myClass:public S {
+	QString<int> V1;
 	int a;
 	int* b = nullptr;
 public:

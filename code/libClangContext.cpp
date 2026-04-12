@@ -71,11 +71,13 @@ LibClangIndexAndTranslationUnit::LibClangIndexAndTranslationUnit(LibClangContext
 			delete(tu);
 		}
 		return;});
-
+	std::vector<const char*> args;
+	args.push_back("-x");
+	args.push_back("c++");
 	clang_parseTranslationUnit2(
 		*index,
 		data->paths[data->mainIndex].get(),
-		nullptr, 0,              // 命令行参数（可空）
+		args.data(), args.size(),              // 命令行参数（可空）
 		data->unsaveFilesCache.get(), data->fileNum,        // 提供 unsaved files 数组
 		CXTranslationUnit_None, tu.get()
 	);
