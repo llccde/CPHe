@@ -14,9 +14,15 @@ public:
 	
 	QString readLine(int offset) override;
 	int getRowCount() override;
+	
 	CppCodeFileReader(bool formatIndent,CodePosition pos, int indentLength);
+	QString readAll() override;
 private:
 	void readLineRawIntoBuffer();
 	void handleIndent();
+
+
+	// 通过 CodeFileReader 继承
+	
 
 };

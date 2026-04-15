@@ -127,3 +127,14 @@ void CppCodeFileReader::handleIndent()
             });
     }
 }
+
+QString CppCodeFileReader::readAll()
+{
+    QString qs;
+    for (auto i:buffer)
+    {
+        qs += i;
+        qs += "\n";
+    }
+    return qs;
+}

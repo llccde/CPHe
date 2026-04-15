@@ -20,6 +20,7 @@ public:
 	virtual CodeListModel* getCodeListModel() = 0;
 	virtual NameViewTreeModel* getSymbolsModel() = 0;
 	virtual void selectedSymbolChanged(const QModelIndex&) = 0;
+	virtual void copyCode(const QModelIndex&) = 0;
 	virtual void updateModelToFile(int index) = 0;
 
 	virtual ~LanguageBackend() {};
@@ -28,7 +29,7 @@ public:
 class LibClangContext;
 class CppLanguageBackend:public LanguageBackend {
 	std::unique_ptr<CodeListModel> codeModel;
-	std::unique_ptr<NameViewTreeModel> treeView;
+	std::unique_ptr<NameViewTreeModel> treeViewModel;
 	std::unique_ptr<LibClangContext> clangContext;
 	SignalUniquePtr<NameMapResPack> nameMapResPack;
 public:
@@ -37,10 +38,13 @@ public:
 	// 通过 LanguageBackend 继承
 	CodeListModel* getCodeListModel() override { return codeModel.get(); };
 
-	NameViewTreeModel* getSymbolsModel() override { return treeView.get(); };
+	NameViewTreeModel* getSymbolsModel() override { return treeViewModel.get(); };
 
 	void updateModelToFile(int index) override;
 	// 通过 LanguageBackend 继承
 	void selectedSymbolChanged(const QModelIndex&) override;
 	~CppLanguageBackend();
+
+	// 通过 LanguageBackend 继承
+	void copyCode(const QModelIndex&) override;
 };

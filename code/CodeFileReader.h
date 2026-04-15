@@ -6,6 +6,7 @@ class CodeFileReader {
 	Vector<QString> content;
 public:
 	virtual QString readLine(int offset) = 0;
+	virtual QString readAll() = 0;
 	virtual int getRowCount() = 0;
 
 

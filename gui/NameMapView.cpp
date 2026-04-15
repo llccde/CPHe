@@ -11,6 +11,8 @@
 #include"CppCodeVisitor.h"
 #include"CodeAnalyzer.h"
 #include"HighlightDelegate.h"
+#include"qmenu.h"
+#include"qlistview.h"
 
 static QString openExplore() {
 	QString configPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
@@ -34,19 +36,16 @@ NameMapView::NameMapView(QWidget* parent)
 	: QWidget(parent)
 	, ui(new Ui::NameMapViewClass())
 {
+	backend.reset(new CppLanguageBackend(loadedFile));
 	ui->setupUi(this);
-	nameMap.resetSync(nullptr);
-	dataModel.reset(new NameViewTreeModel(nameMap, this));
-	codeModel.reset(new CodeListModel());
-	clangContext.reset(new LibClangContext());
+
 	loadedFileDelegate.reset(new HighlightDelegateOfQString());
-	ui->nameMapView->setModel(dataModel.get());
+	ui->nameMapView->setModel(backend->getSymbolsModel());
 	ui->loadedFiles->setModel(&loadedFileModel);
 	ui->loadedFiles->setItemDelegate(loadedFileDelegate.get());
-	ui->codeView->setModel(codeModel.get());
+	ui->codeView->setModel(backend->getCodeListModel());
 	connect(ui->refreshButton, &QPushButton::clicked, this, [this]() {
-		loadIntoClangContext();
-		runCodeAnalyze();
+		backend->updateModelToFile(currentSelectLoadedFile);
 	});
 	connect(ui->loadButton, &QPushButton::clicked, this, [this]() {
 		QString filePath = openExplore();
@@ -72,7 +71,9 @@ NameMapView::NameMapView(QWidget* parent)
 		
 	});
 	connect(ui->removeLoadedFileButton, &QPushButton::clicked, this, [this]() {
-		loadedFile.remove(getCurrentSelectLoadedFile());
+		int n = getCurrentSelectLoadedFile();
+		if (n == -1)return;
+		loadedFile.remove(n);
 		loadedFileModel.setStringList(loadedFile);
 	});
 	connect(ui->setMainFileButton, &QPushButton::clicked, this, [this]() {
@@ -85,10 +86,21 @@ NameMapView::NameMapView(QWidget* parent)
 		this->setCurrentSelectLoadedFile(-1);
 	});
 	connect(ui->nameMapView, &QTreeView::clicked, this, [this](const QModelIndex& index) {
-		auto raw = this->dataModel->getRawNode(index);
-		auto pos = raw->getPosition();
-		std::unique_ptr<CppCodeFileReader> reader(new CppCodeFileReader(true, pos, 4));
-		codeModel->reset(std::move(reader));
+		backend->selectedSymbolChanged(index);
+		
+	});
+	connect(ui->nameMapView, &QTreeView::clicked, this, [this](const QModelIndex& index) {
+		backend->selectedSymbolChanged(index);
+
+	});
+	ui->nameMapView->setContextMenuPolicy(Qt::CustomContextMenu);
+	connect(ui->nameMapView, &QTreeView::customContextMenuRequested, this, [this](const QPoint& pos) {
+		QMenu menu;
+		auto index = this->ui->nameMapView->indexAt(pos);
+		menu.addAction(QString("copy"), [this,&index]() {
+			this->backend->copyCode(index);
+		});
+		menu.exec(QCursor::pos());
 	});
 	//connect(ui->loadedFiles,&QListView)
 	
@@ -99,30 +111,10 @@ NameMapView::~NameMapView()
 	delete ui;
 }
 
-void NameMapView::loadIntoClangContext()
-{
-	clangContext->clear();
-	bool first = true;
-	for (auto& i : loadedFile) {
-		auto file = new QFileReader(i);
-		bool ismain(file->getFullPath() == currentMainFile);
-		clangContext->addFile(UniqueFilePtr(file), ismain?LibClangContext::isMainFile: LibClangContext::notMainFile);
-		first = false;
-	}
-}
-
-void NameMapView::runCodeAnalyze()
-{
-	CodeAnalyzer ana(clangContext.get());
-	CPPCodeVisitor cv;
-	ana.launch(&cv);
-	auto resPack = cv.getNameMap();
-	nameMap.resetAsync(std::move(resPack));
-}
 
 int NameMapView::getCurrentSelectLoadedFile()
 {
-	assert(currentSelectLoadedFile >= 0 && currentSelectLoadedFile < loadedFile.size());
+	//assert(currentSelectLoadedFile >= 0 && currentSelectLoadedFile < loadedFile.size());
 	return currentSelectLoadedFile;
 }
 

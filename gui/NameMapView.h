@@ -4,6 +4,7 @@
 #include "ui_NameMapView.h"
 #include<qstringlistmodel.h>
 #include"SignalUniquePtr.h"
+#include"LanguageBackend.h"
 #include"CodeListModel.h"
 QT_BEGIN_NAMESPACE
 namespace Ui { class NameMapViewClass; };
@@ -17,10 +18,11 @@ class NameMapView : public QWidget
 {
 	Q_OBJECT
 private:
-	std::unique_ptr<CodeListModel> codeModel;
-	std::unique_ptr<NameViewTreeModel> dataModel;
-	SignalUniquePtr<NameMapResPack> nameMap;
-	std::unique_ptr<LibClangContext> clangContext;
+	std::unique_ptr<LanguageBackend> backend;
+	//std::unique_ptr<CodeListModel> codeModel;
+	//std::unique_ptr<NameViewTreeModel> dataModel;
+	//SignalUniquePtr<NameMapResPack> nameMap;
+	//std::unique_ptr<LibClangContext> clangContext;
 	std::unique_ptr<HighlightDelegateOfQString> loadedFileDelegate;
 	QStringListModel loadedFileModel;
 	QStringList loadedFile;
@@ -30,8 +32,6 @@ public:
 	NameMapView(QWidget *parent = nullptr);
 	~NameMapView();
 public:
-	void loadIntoClangContext();
-	void runCodeAnalyze();
 	int getCurrentSelectLoadedFile();
 	void setCurrentSelectLoadedFile(int val);
 private:

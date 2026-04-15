@@ -11,4 +11,4 @@ target_sources(${PROJECT_NAME} PRIVATE
     NameMapView.ui
 
  "HighlightDelegate.h"
-"HighlightDelegate.cpp"  )
+"HighlightDelegate.cpp"   "LambdaFileters.h")
