@@ -53,6 +53,7 @@ qt_add_executable(${PROJECT_NAME} ${ROOT_SOURCES})
 add_subdirectory(gui)
 add_subdirectory(code)
 add_subdirectory(GUIInterface)
+add_subdirectory(workFlow)
 # 目标属性
 set_target_properties(${PROJECT_NAME}
     PROPERTIES

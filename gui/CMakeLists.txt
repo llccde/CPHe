@@ -12,3 +12,4 @@ target_sources(${PROJECT_NAME} PRIVATE
 
  "HighlightDelegate.h"
 "HighlightDelegate.cpp"   "LambdaFileters.h")
+QT_ADD_RESOURCES(${PROJECT_NAME} PRIVATE qml/qml.qrc)
