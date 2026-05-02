@@ -196,7 +196,6 @@ public:
     std::unique_ptr<PSCTranslater> translater;   // 假设 PSCTranslater 类已定义
     PSCContext context;
     std::map<QString, std::unique_ptr<PSCOperator>> operators;
-
     PSCInterpreter() {
         // 注册默认输出接收器（拼接模式）
         context.registe(std::make_unique<AppendPSCReceiver>(), recvNames.outPut);
