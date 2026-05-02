@@ -9,7 +9,16 @@ target_sources(${PROJECT_NAME} PRIVATE
     NameMapView.cpp
     NameMapView.h
     NameMapView.ui
-
- "HighlightDelegate.h"
-"HighlightDelegate.cpp"   "LambdaFileters.h")
+    PSCMainWindow.h
+    PSCMainWindow.cpp
+    PSCMainWindow.ui
+    PSConsole.ui
+    PSConsole.h
+    PSConsole.cpp
+    
+    
+     "HighlightDelegate.h"
+    "HighlightDelegate.cpp"   
+    "LambdaFileters.h" 
+    "PSCWidget.h")
 QT_ADD_RESOURCES(${PROJECT_NAME} PRIVATE qml/qml.qrc)

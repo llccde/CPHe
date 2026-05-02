@@ -10,6 +10,7 @@ public:
 	QVector<QString> loadedFiles;
 	std::unique_ptr<LibClangContext> clangContext;
 	std::unique_ptr<NameMapResPack> nameMapResPack;
+	virtual ~CppContext();
 };
 class CppContextManager :public BaseContextManager {
 public:

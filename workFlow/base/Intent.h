@@ -28,8 +28,7 @@ public:
 		return Intent(des,ctx);
 	}
 	virtual QString getData() {
-		assert(false);
-		return "";
+		return describe;
 	}
 
 	//暂时不打算使用这个方法

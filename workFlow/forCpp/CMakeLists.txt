@@ -9,6 +9,11 @@ GetCppSymbol.cpp
 GetCppSymbol.h
  "CppContext.h"
 "CppContext.cpp"
-LoadFile.h
-LoadFile.cpp
-CppOperator.h     "ManyCppOperators.cpp" "ManyCppOperators.h") 
+"LoadCppFile.h"
+"LoadCppFile.cpp"
+CppOperator.h     
+"ManyCppOperators.cpp" 
+"ManyCppOperators.h" 
+"CppOperator.cpp" 
+"CppTaskFactory.h" 
+"CppTaskFactory.cpp") 

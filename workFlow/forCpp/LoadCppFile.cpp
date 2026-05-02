@@ -1,9 +1,9 @@
-﻿#include "LoadFile.h"
+﻿#include "LoadCppFile.h"
 #include"workFlowContext.h"
 #include"CppContext.h"
 #include"Intent.h"
 
-void LoadFile::handleIntent(QVector<Intent*>intents, WorkFlowContext* ctx)
+void LoadCppFile::handleIntent(QVector<Intent*>intents, WorkFlowContext* ctx)
 {
 	for (auto i : intents)
 	{
@@ -16,6 +16,6 @@ void LoadFile::handleIntent(QVector<Intent*>intents, WorkFlowContext* ctx)
 	}
 }
 
-void LoadFile::BeRememberAsIntent(Intent*, WorkFlowContext*)
+void LoadCppFile::BeRememberAsIntent(Intent*, WorkFlowContext*)
 {
 }

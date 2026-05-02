@@ -41,3 +41,7 @@ void RunCppAnalyze::handleIntent(QVector<Intent*>, WorkFlowContext*)
 void RunCppAnalyze::BeRememberAsIntent(Intent*, WorkFlowContext*)
 {
 }
+
+RunCppAnalyze::~RunCppAnalyze()
+{
+}
