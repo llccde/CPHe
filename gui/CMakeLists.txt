@@ -9,12 +9,12 @@ target_sources(${PROJECT_NAME} PRIVATE
     NameMapView.cpp
     NameMapView.h
     NameMapView.ui
-    PSCMainWindow.h
-    PSCMainWindow.cpp
-    PSCMainWindow.ui
-    PSConsole.ui
-    PSConsole.h
-    PSConsole.cpp
+    #PSCMainWindow.h
+    #PSCMainWindow.cpp
+    #PSCMainWindow.ui
+    #PSConsole.ui
+    #PSConsole.h
+    #PSConsole.cpp
     
     
      "HighlightDelegate.h"

@@ -18,6 +18,7 @@
 #include"QFileReader.h"
 #include"MainClass.h"
 #include"workFlow/PSCTranslater.h"
+#include"workFlow/PSCInterpreter.h"
 //#include"CppTaskFactory.h"
 //#include"CppOperator.h"
 //#include"TaskManager.h"
@@ -49,33 +50,34 @@ int main(int argc, char* argv[])
     /*MainClass mainClass;
     mainClass.showAll();*/
 
-    PSCTranslater parser;
-    PSCCommand cmd;
+    //PSCTranslater parser;
+    //PSCCommand cmd;
 
-    // 完整形式
-    cmd = parser.translate("@def ins:main");
-    cmd.output();
-    parser.outputErr();
-    // 省略 recv，直接跟冒号
-    cmd = parser.translate("@depDecl:main");
-    cmd.output();
-    parser.outputErr();
-    // 多参数，带转义
-    cmd = parser.translate("@decl ins:ClassA::InnerA\\;ClassB");
-    cmd.output();
-    parser.outputErr();
-    // 没有参数
-    cmd = parser.translate("@set file:");
-    cmd.output();
-    parser.outputErr();
-    // 错误输入
-    cmd = parser.translate("@3abc");
-    cmd.output();
-    parser.outputErr();
-    cmd = parser.translate("@def recv(hello):\\@main(hell)");
-    cmd.output();
-    parser.outputErr();
-
+    //// 完整形式
+    //cmd = parser.translate("@def ins:main");
+    //cmd.output();
+    //parser.outputErr();
+    //// 省略 recv，直接跟冒号
+    //cmd = parser.translate("@depDecl:main");
+    //cmd.output();
+    //parser.outputErr();
+    //// 多参数，带转义
+    //cmd = parser.translate("@decl ins:ClassA::InnerA\\;ClassB");
+    //cmd.output();
+    //parser.outputErr();
+    //// 没有参数
+    //cmd = parser.translate("@set file:");
+    //cmd.output();
+    //parser.outputErr();
+    //// 错误输入
+    //cmd = parser.translate("@3abc");
+    //cmd.output();
+    //parser.outputErr();
+    //cmd = parser.translate("@def recv(hello):\\@main(hell)");
+    //cmd.output();
+    //parser.outputErr();
+    PSCInterpreter it;
+    it.runFile("E:\\cpp\\qt\\CPHe\\example.txt");
 
     return app.exec();
 }

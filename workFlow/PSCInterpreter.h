@@ -146,7 +146,7 @@ public:
         return call_impl(args);   // 关键修复
     }
     void error(const QString& err) {
-        collector->put(err);
+        collector->put("in this operator:"+err);
     }
     QString redCtx(const QString& recv, const QString& udi) {
         if (context->contains(recv)) {
@@ -183,7 +183,7 @@ public:
 
 static struct Oprerators{
     QString join = "join";
-
+    QString printOutPut = "printOut";
 } opNames;
 static struct Receivers {
     QString empty = "empty";
@@ -206,11 +206,22 @@ public:
             PSCLambdaOperator::getByLambda([](const QVector<QString>& args,PSCOperator*) {
                 QString ret;
                 for(const auto&i:args){
-                    ret.append(i + "\n");
+                    ret.append(i);
                 }
                 return ret;
             }) 
         });
+        operators.insert({
+            opNames.printOutPut,
+            PSCLambdaOperator::getByLambda([&](const QVector<QString>& args,PSCOperator* _this) {
+                if (args.size()) {
+                    _this->error("no need args");
+                }
+                std::cout<< _this->redCtx(recvNames.outPut,defaultUDI).toStdString()<<std::endl;
+                return "";
+            })
+        });
+
         translater = std::make_unique<PSCTranslater>();
     }
 
@@ -253,9 +264,14 @@ public:
         }
         else {
             // 纯文本直接作为输出
+            QVector<PSCCommandArg> args;
+            args.append(PSCCommandArg(true, PSCCommandArg::rawStr, codeLine, ""));
+            if (!codeLine.endsWith("\n")) {
+                args.append(PSCCommandArg(true, PSCCommandArg::rawStr, "\n", ""));
+            }
             common = PSCCommand(
                 true, opNames.join, recvNames.outPut, defaultUDI,
-                { PSCCommandArg(true, PSCCommandArg::rawStr, codeLine, "") }
+                args
             );
         }
 
@@ -312,7 +328,7 @@ public:
         }
         
         // 调用操作符并获取结果
-        QString result = operators[common.op]->call(resolvedArgs,err);
+        QString result = operators[common.op]->call(resolvedArgs,err,context);
 
         // 将结果写入目标接收器
         context.write(common.recv, common.recvUDI, result);

@@ -260,16 +260,28 @@ PSCCommand PSCTranslater::translate(const QString& raw) {
 
     // 寻找冒号
     int colonRel = afterAt.indexOf(QLatin1Char(':'));
+
+    SubStr leftStr;
+    SubStr argsStr;      // 实际使用与否取决于是否有冒号，这里声明但不一定赋值
     if (colonRel == -1) {
-        collectError(afterAt, PSCErrorType::MissingColon);
-        return cmd;
+        // 没有冒号：整个 afterAt 视为左侧（操作符+接收器部分）
+        leftStr = afterAt.trimmed();
+        // argsStr 保持未赋值状态，之后不会用它
+    }
+    else {
+        // 有冒号：分割左侧和参数部分
+        leftStr = afterAt.mid(0, colonRel).trimmed();
+        argsStr = afterAt.mid(colonRel + 1);
     }
 
-    SubStr leftStr = afterAt.mid(0, colonRel).trimmed();
-    SubStr argsStr = afterAt.mid(colonRel + 1);
-
     LeftResult left = parseLeft(leftStr);
-    ArgsResult args = parseArgs(argsStr);
+    ArgsResult args;
+    if (colonRel != -1) {
+        args = parseArgs(argsStr);   // 有冒号才解析参数
+    }
+    else {
+        // 没有冒号时参数列表为空，args 默认构造即可
+    }
 
     // 组装最终命令（无论 left 是否成功都填充字段）
     cmd.valid = (left.state == PSCParseState::Success);
