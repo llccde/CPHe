@@ -1,7 +1,7 @@
 ﻿# 将 gui 目录下的源文件、头文件和 UI 文件添加到主目标
 
 target_include_directories(${PROJECT_NAME} PRIVATE 
-
+../code/
 )
 #add_subdirectory(operators)
 #add_subdirectory(forCpp)

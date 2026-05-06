@@ -1,3 +1,5 @@
 ﻿hello world
+@setFile:E:\\cpp\\qt\\CPHe\\code\\libClangContext.h
+@getDef output:LibClangContext
 @join output:ni hou
 @printOut
