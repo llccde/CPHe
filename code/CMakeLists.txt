@@ -17,4 +17,5 @@ target_sources(${PROJECT_NAME} PRIVATE
     "NameTree.h" 
     "NameTree.cpp" 
     "BaseCodeVisitor.h" 
-    "BaseCodeVisitor.cpp" "QFileReader.h" "CppFileAnalyzer.h" "CppFileAnalyzer.cpp")
+    "RuntimeErrcollector.h" 
+    "BaseCodeVisitor.cpp" "QFileReader.h" "CppFileAnalyzer.h" "CppFileAnalyzer.cpp" "CppFileVisitorManager.h" "CppFileVisitorManager.cpp" "FileContentManager.cpp" "CodeSnippet.h" "SpiderVisitor.h" "SpiderVisitor.cpp" "LibclangTool.h" "LibclangTool.cpp" )

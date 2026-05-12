@@ -1,5 +1,8 @@
 ﻿hello world
 @setFile:E:\\cpp\\qt\\CPHe\\code\\libClangContext.h
 @getDef output:LibClangContext
+@getDep vars(deps1):LibClangContext
+@forEach vars(temp):vars(deps)
+@getDef vars(temp2):vars(temp)
 @join output:ni hou
 @printOut

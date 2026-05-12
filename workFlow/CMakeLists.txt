@@ -10,4 +10,4 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_sources(${PROJECT_NAME} PRIVATE
 	
 	PSCTranslater.h
- "PSCTranslater.cpp" "PSCErrorType.h" "PSCLangErr.h" "SubStr.h" "PSCInterpreter.h")
+ "PSCTranslater.cpp" "PSCErrorType.h" "PSCLangErr.h" "SubStr.h" "PSCInterpreter.h" "PSCVar.h" "PSCReceivers.h" "PSCContext.h" "PSCVarDrefTool.h" "PSCOperators.h" "PSCBuildingOperators.h" "PSCBuildingOperators.cpp" "../code/FileContentManager.h" "PSCOperators.cpp")
