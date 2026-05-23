@@ -53,46 +53,86 @@ PSCVar builtin_setFile(const QVector<PSCVar>& args, PSCOperator* _this) {
     auto& cpp = _this->context->cppContext;
     cpp.MainFilePath = filePath;
     cpp.result = cpp.analyzer.runAnalyzer(filePath);
+    cpp.libclangContext = cpp.analyzer.getContext(filePath);
     _this->message(QString("setFile: analysis completed for %1").arg(filePath));
     return PSCVar::null();
 }
-
 PSCVar builtin_getDef(const QVector<PSCVar>& args, PSCOperator* _this) {
-    auto& data = _this->context->cppContext.result;
-    using Identifier = CppCodeAnalyzerResult::Identifier;
-    Identifier current = data.getRoot();
+
+    CXTranslationUnit tu = _this->context->cppContext.libclangContext->tu;   // 接口留白
+    if (!tu) {
+        _this->error("No translation unit available");
+        return PSCVar::null();
+    }
+    CXCursor rootCursor = clang_getTranslationUnitCursor(tu);
+
+    CXCursor current = rootCursor;
     for (const PSCVar& arg : args) {
-        QString name = arg.data();
+        QString targetName = arg.data();
+
+        QVector<CXCursor> children = lct::getDirectDeclChildNode(current);
+
         bool found = false;
-        for (Identifier childId : data.children[current]) {
-            if (data.name.value(childId) == name) {
-                current = childId;
+        for (const CXCursor& child : children) {
+            CXString nameStr = clang_getCursorSpelling(child);
+            QString childName = QString::fromUtf8(clang_getCString(nameStr));
+            clang_disposeString(nameStr);
+
+            if (childName == targetName) {
+                current = child;
                 found = true;
                 break;
             }
         }
+
         if (!found) {
-            _this->error(QString("Identifier '%1' not found in current scope").arg(name));
+            _this->error(QString("Identifier '%1' not found in current scope")
+                .arg(targetName));
             return PSCVar::null();
         }
     }
-    if (data.def.contains(current)) {
-        const auto& snippet = data.def[current];
-        auto id = _this->context->getID();
-        _this->context->cppContext.savedSnippet[id] = snippet;
-        _this->context->cppContext.savedSnippetFilePath[id] = data.filePath[snippet.file];
-        return PSCVar(id, PSCVarType::codeSnippet);
+
+    // ------------------------------------------------------------------
+    // 3. 查找定义或声明：优先取定义，其次取首次声明
+    // ------------------------------------------------------------------
+    CXCursor targetCursor = clang_getNullCursor();
+
+    // 3.1 尝试获取定义（如函数体、变量初始化等）
+    CXCursor defCursor = clang_getCursorDefinition(current);
+    if (!clang_Cursor_isNull(defCursor) && !clang_equalCursors(defCursor, current)) {
+        // 有些情况下定义游标可能和声明相同，需进一步判断是否有定义位置
+        targetCursor = defCursor;
     }
-    if (data.decl.contains(current)) {
-        const auto& snippet = data.decl[current];
-        auto id = _this->context->getID();
-        _this->context->cppContext.savedSnippet[id] = snippet;
-        _this->context->cppContext.savedSnippetFilePath[id] = data.filePath[snippet.file];
-        return PSCVar(id, PSCVarType::codeSnippet);
+
+    // 3.2 如果没有有效定义，使用声明游标
+    if (clang_Cursor_isNull(targetCursor)) {
+        // 如果是声明但无定义，可以使用 clang_getCanonicalCursor 或直接使用 current
+        targetCursor = current;   // current 此时就是路径最后匹配到的声明节点
     }
-    _this->warn(QString("No definition or declaration found for '%1'")
-        .arg(data.name.value(current, "?")));
-    return PSCVar::null();
+
+    // ------------------------------------------------------------------
+    // 4. 使用 lct::getCodeSnippetRange 提取代码范围
+    // ------------------------------------------------------------------
+    lct::CodeSnippetRange snippet;
+    try {
+        snippet = lct::getCodeSnippetRange(targetCursor);
+    }
+    catch (const lct::LCTError& e) {
+        _this->error(QString("Failed to get code snippet: %1").arg(e.what()));
+        return PSCVar::null();
+    }
+
+    // ------------------------------------------------------------------
+    // 5. 生成 ID，将 snippet 及其文件路径保存到上下文中
+    //    （假设 PSCOperator::context->cppContext 提供 savedSnippet / savedSnippetFilePath 容器）
+    // ------------------------------------------------------------------
+    auto id = _this->context->getID();
+    _this->context->cppContext.savedSnippet[id] = snippet;
+    // 根据 snippet.file 获取文件全路径（留白：假设 cppContext 有 filePath 映射或直接使用 snippet.file）
+    _this->context->cppContext.savedSnippetFilePath[id] =
+        _this->context->cppContext.resolveFilePath(snippet.file);      // 接口留白
+
+    return PSCVar(id, PSCVarType::codeSnippet);
 }
 FileContentManager getDefDepth_impl(CXCursor cx, int dep, PSCOperator* op) {
     RunTimeErrorCollector rc;

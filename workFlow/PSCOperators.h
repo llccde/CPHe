@@ -30,7 +30,7 @@ protected:
 
     bool assertReturnType = false;
     bool returnTypeCanBeNull = true;
-    PSCVarType returnType = PSCVarType::nullVar;
+    WarpPscVarType returnType = PSCVarType::nullVar;
 
     virtual PSCVar call_impl(QVector<PSCVar>& args) = 0;
     virtual bool checkArg_child(QVector<PSCVar>& /*args*/) { return true; }
@@ -56,9 +56,9 @@ public:
     void argExact(int thNum) { argType = onlyExactNum; theExactNum = thNum; argTypes.clear(); }
 
     void setArgTypes(const QVector<WarpPscVarType>& types);
-    void setArgTypes(const QVector<PSCVarType>& types);
 
-    void setReturnType(PSCVarType t, bool canBeNull = true);
+
+    void setReturnType(WarpPscVarType t, bool canBeNull = true);
 
     PSCVar call(QVector<PSCVar>& args, RunTimeErrorCollector& err, PSCContext& ctx);
 

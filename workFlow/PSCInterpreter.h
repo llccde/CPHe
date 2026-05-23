@@ -73,9 +73,10 @@ public:
         auto getDefOp = PSCLambdaOperator::getByLambda(&builtin_getDef);
         getDefOp->argAny();
         getDefOp->setName(opNames.getDef);
-        getDefOp->setArgTypes({ PSCVarType::rawStr });
+        getDefOp->setArgTypes({ PSCSegmRawStrType::identifer});
         getDefOp->setReturnType(PSCVarType::CXCursor);
         operators.insert({ opNames.getDef, std::move(getDefOp) });
+
 
         auto getDeclWithDepthOp = PSCLambdaOperator::getByLambda(&builtin_getDefDepth);
         

@@ -53,15 +53,8 @@ void PSCOperator::setArgTypes(const QVector<WarpPscVarType>& types) {
     }
 }
 
-void PSCOperator::setArgTypes(const QVector<PSCVarType>& types) {
-    QVector<WarpPscVarType> warped;
-    warped.reserve(types.size());
-    for (PSCVarType t : types)
-        warped.append(WarpPscVarType(t));
-    setArgTypes(warped);
-}
 
-void PSCOperator::setReturnType(PSCVarType t, bool canBeNull) {
+void PSCOperator::setReturnType(WarpPscVarType t, bool canBeNull) {
     assertReturnType = true;
     returnType = t;
     returnTypeCanBeNull = canBeNull;
@@ -191,10 +184,10 @@ PSCVar PSCOperator::call(QVector<PSCVar>& args, RunTimeErrorCollector& err, PSCC
             return PSCVar();
         }
     }
-    if (res.getType() != returnType) {
+    if (typeMatches(res,returnType)) {
         error(QString("Return type mismatch: expected %1, got %2")
-            .arg(typeName(returnType))
-            .arg(typeName(res.getType())));
+            .arg(warpTypeName(returnType))
+            .arg(warpTypeName({res.getType(),res.getSegm()})));
         return PSCVar();
     }
     return res;

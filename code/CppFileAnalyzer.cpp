@@ -128,23 +128,68 @@ static CXChildVisitResult visitorCallback(CXCursor cursor, CXCursor /*parent*/, 
     return CXChildVisit_Recurse;                  // 继续深入子节点
 }
 
-// ------------------- 执行分析 -------------------
-CppCodeAnalyzerResult CppCodeAnalyzer::runAnalyzer(QString mainFile) {
+CppCodeAnalyzerResult CppCodeAnalyzer::runAnalyzer(QString mainFile)
+{
     CppCodeAnalyzerResult result;
+    // 初始化根节点
     result.name[0] = "root";
     result.USRID[0] = "theRootOfAll";
 
-    // 构造编译参数
-    QVector<const char*> args;
-    args.push_back("-x");
-    args.push_back("c++");                          // 强制 C++ 模式
-    for (const QString& folder : m_includeFolders) {
-        QByteArray arg = ("-I" + folder).toUtf8();
-        args.push_back(arg.constData());
+    // 获取翻译单元，失败则直接返回只有根节点的结果
+    auto ctx = getContext(mainFile);
+    if (!ctx)
+        return result;
+
+    // ======= 第一阶段：遍历 AST，收集实体 =======
+    QMap<QString, CppCodeAnalyzerResult::Identifier> usrToId;
+    QMap<CppCodeAnalyzerResult::Identifier, QString> parentUSR;
+    QMap<QString, CppCodeAnalyzerResult::fileID> pathToId;
+    CppCodeAnalyzerResult::fileID nextFileId = 1;
+    CppCodeAnalyzerResult::Identifier nextId = 1;
+
+    VisitorData data{ &result, &usrToId, &parentUSR, &pathToId, &nextFileId, &nextId };
+    clang_visitChildren(clang_getTranslationUnitCursor(ctx->tu), visitorCallback, &data);
+
+    for (auto it = usrToId.begin(); it != usrToId.end(); ++it) {
+        CppCodeAnalyzerResult::Identifier id = it.value();
+        const QString& pUSR = parentUSR[id];
+        CppCodeAnalyzerResult::Identifier parentId = 0;
+
+        if (!pUSR.isEmpty()) {
+            auto pIt = usrToId.find(pUSR);
+            if (pIt != usrToId.end())
+                parentId = pIt.value();
+        }
+        result.parent[id] = parentId;
+        result.children[parentId].push_back(id);
     }
-    for (const QString& file : m_includeFiles) {
-        QByteArray arg = ("-include" + file).toUtf8();
-        args.push_back(arg.constData());
+
+    // ctx 离开作用域时自动释放 TU 和 index
+    return result;
+}
+
+void CppCodeAnalyzer::addIncludeFile(QString path) {
+    m_includeFiles.append(path);
+}
+
+void CppCodeAnalyzer::addIncludeFolder(QString path) {
+    m_includeFolders.append(path);
+}
+
+std::unique_ptr<LibbClangContext> CppCodeAnalyzer::getContext(const QString& mainFile)
+{
+    QVector<QByteArray> argStorage;
+    QVector<const char*> args;
+
+    args.push_back("-x");
+    args.push_back("c++");
+    for (const auto& folder : m_includeFolders) {
+        argStorage.push_back(("-I" + folder).toUtf8());
+        args.push_back(argStorage.last().constData());
+    }
+    for (const auto& file : m_includeFiles) {
+        argStorage.push_back(("-include" + file).toUtf8());
+        args.push_back(argStorage.last().constData());
     }
 
     CXIndex index = clang_createIndex(0, 0);
@@ -158,47 +203,15 @@ CppCodeAnalyzerResult CppCodeAnalyzer::runAnalyzer(QString mainFile) {
 
     if (!tu) {
         clang_disposeIndex(index);
-        return result;
+        return nullptr;
     }
 
-    // 第一阶段：收集所有实体
-    QMap<QString, CppCodeAnalyzerResult::Identifier> usrToId;
-    QMap<CppCodeAnalyzerResult::Identifier, QString> parentUSR;
-    QMap<QString, CppCodeAnalyzerResult::fileID> pathToId;
-    CppCodeAnalyzerResult::fileID nextFileId = 1;
-    CppCodeAnalyzerResult::Identifier nextId = 1;
-
-    VisitorData data{ &result, &usrToId, &parentUSR, &pathToId, &nextFileId, &nextId };
-    clang_visitChildren(clang_getTranslationUnitCursor(tu), visitorCallback, &data);
-
-    // 第二阶段：建立父子关系（root id = 0）
-    for (auto it = usrToId.begin(); it != usrToId.end(); ++it) {
-        CppCodeAnalyzerResult::Identifier id = it.value();
-        const QString& pUSR = parentUSR[id];
-        CppCodeAnalyzerResult::Identifier parentId = 0;  // 默认为 root
-
-        if (!pUSR.isEmpty()) {
-            auto pIt = usrToId.find(pUSR);
-            if (pIt != usrToId.end())
-                parentId = pIt.value();
-        }
-        result.parent[id] = parentId;
-        result.children[parentId].push_back(id);
-    }
-
-    clang_disposeTranslationUnit(tu);
-    clang_disposeIndex(index);
-    return result;
+    // 直接返回 unique_ptr，内部用 new 或 make_unique
+    auto ctx = std::make_unique<LibbClangContext>();
+    ctx->index = index;
+    ctx->tu = tu;
+    return ctx;
 }
-
-void CppCodeAnalyzer::addIncludeFile(QString path) {
-    m_includeFiles.append(path);
-}
-
-void CppCodeAnalyzer::addIncludeFolder(QString path) {
-    m_includeFolders.append(path);
-}
-
 void CppCodeAnalyzerResult::print() const
 {
     // 递归遍历树，从 root (ID=0) 开始

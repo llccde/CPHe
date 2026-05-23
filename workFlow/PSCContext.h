@@ -22,11 +22,11 @@ public:
         QString workingFolder;
         CppCodeAnalyzer analyzer;
         CppCodeAnalyzerResult result;
+        std::unique_ptr<LibbClangContext> libclangContext;
     } cppContext;
+
     QMap<QString, QVector<QString>> savedStringList;
     std::map<QString, std::unique_ptr<PSCReceiver>> receivers;
-
-    // 返回 PSCVar 而非 QString
     PSCVar get(QString receiverName, QString userDefID) {
         
         auto it = receivers.find(receiverName);

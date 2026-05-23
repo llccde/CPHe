@@ -28,11 +28,24 @@ struct CppCodeAnalyzerResult {
     QMap<fileID, QString> filePath;       // fileID -> 文件路径
     void print() const;
 };
+struct LibbClangContext {
+    CXIndex index;
+    CXTranslationUnit tu;
 
+    ~LibbClangContext() {
+        if (tu)    clang_disposeTranslationUnit(tu);
+        if (index) clang_disposeIndex(index);
+    }
+
+    // 禁止拷贝
+    LibbClangContext(const LibbClangContext&) = delete;
+    LibbClangContext& operator=(const LibbClangContext&) = delete;
+};
 class CppCodeAnalyzer {
 public:
     void addIncludeFile(QString path);
     void addIncludeFolder(QString path);
+    std::unique_ptr<LibbClangContext> getContext(const QString& mainFile);
     CppCodeAnalyzerResult runAnalyzer(QString mainFile);
 
 private:
