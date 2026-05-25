@@ -39,11 +39,25 @@ namespace awf {
 		bool isCommandComment(int row);
 		QString getSource(int row);
 		int rowCount();
+	public:
+		// 判断在 b 行之后插入一行是否会处于多行注释块内
+		// b 可以为 -1（文件最开头）或 rowCount()-1（最后一行之后）
+		bool isCommentBlockAfter(int b) const;
 
+		// 获取某一行的父指令行号（即包含它的最近的长指令开始行），若无则返回 -1
+		int getParentRow(int row) const;
+
+		// 获取指定长指令开始行的所有直接子指令的行号列表（包括嵌套块的整体）
+		QVector<int> getChildRows(int parentRow) const;
+
+		// === 在类定义的 private 部分添加 ===
+	private:
+		QVector<bool> mInBlockAfterLine;   // 索引 i 表示处理完第 i-1 行后的注释块状态，长度为 rowCount+1
+		QVector<int>  mParentRow;          // 每行的父长指令开始行索引，-1 表示顶层
 	private:
 		QVector<LineInfo> mLines;
 		mutable QHash<int, M_Command> mCommandCache; // 缓存解析结果
 
-		void parseArguments(const QString& argPart, QMap<QString, QString>& args);
+		void parseArguments(const QString& argPart, QVector<M_CommandArg>& args);
 	};
 }

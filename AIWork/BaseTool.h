@@ -28,7 +28,33 @@ namespace awf {
         file.close();
         return line;
     }
-    inline QVector<QString> extract(const QString& begin, const QString& end, const QVector<QString>& data) {
+    inline QVector<QString> extractContent(const QString& begin,
+        const QString& end,
+        const QString& data)
+    {
+        QVector<QString> result;
+        if (begin.isEmpty() || end.isEmpty() || data.isEmpty())
+            return result;
+
+        int from = 0;
+        while (from < data.size()) {
+            int beginIdx = data.indexOf(begin, from);
+            if (beginIdx == -1)
+                break;
+
+            int contentStart = beginIdx + begin.size();
+            int endIdx = data.indexOf(end, contentStart);
+            if (endIdx == -1)
+                break;
+
+            QString content = data.mid(contentStart, endIdx - contentStart);
+            result.append(content.trimmed());
+
+            from = endIdx + end.size();
+        }
+        return result;
+    }
+    inline QVector<QString> extractLineBase(const QString& begin, const QString& end, const QVector<QString>& data) {
         bool lookingBegin = true;
         QVector<QString> result;
         QString current;

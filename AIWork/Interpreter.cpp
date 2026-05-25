@@ -3,11 +3,71 @@
 #include"ClangTool.h"
 #include <QRegularExpression>
 #include"CommentTool.h"
+#include<qstack.h>
 using namespace awf;
 void Interpreter::loadFile(QString filePath) {
     CommentTool tool;
-    mLines = tool.analyzeFile(filePath,"//","/*","*/");
+    mLines = tool.analyzeFile(filePath, "//", "/*", "*/");
     mCommandCache.clear();
+
+    // 计算注释块状态
+    mInBlockAfterLine.resize(mLines.size() + 1);
+    bool inBlock = false;
+    mInBlockAfterLine[0] = inBlock; // 文件开始前
+
+    // 构建父子关系
+    mParentRow.resize(mLines.size());
+    QStack<int> longBlockStack;
+
+    for (int i = 0; i < mLines.size(); ++i) {
+        // 1. 注释块状态更新（基于当前行的多行注释标记）
+        if (mLines[i].hasMutiLineCommentBegin && !mLines[i].hasMutiLineCommentEnd)
+            inBlock = true;
+        else if (mLines[i].hasMutiLineCommentEnd && !mLines[i].hasMutiLineCommentBegin)
+            inBlock = false;
+        // 若同时出现 begin 和 end（同一行闭合），状态不变
+        mInBlockAfterLine[i + 1] = inBlock;
+
+        // 2. 主动解析命令并建立父子关系
+        M_Command cmd = getCommandOf(i);      // 自动写入缓存
+        mParentRow[i] = longBlockStack.isEmpty() ? -1 : longBlockStack.top();
+
+        if (cmd.isLongOperator) {
+            longBlockStack.push(i);
+        }
+        else if (cmd.type == MP::end) {
+            if (!longBlockStack.isEmpty())
+                longBlockStack.pop();
+            // 不匹配的 @end 可忽略或记录警告（此处保持静默）
+        }
+    }
+}
+
+bool Interpreter::isCommentBlockAfter(int b) const {
+    // b 的有效范围 [-1, rowCount()-1]
+    if (b < -1) return false;
+    int idx = b + 1; // 映射到 mInBlockAfterLine 的索引
+    if (idx < 0 || idx >= mInBlockAfterLine.size())
+        return false;
+    return mInBlockAfterLine[idx];
+}
+
+int Interpreter::getParentRow(int row) const {
+    if (row < 0 || row >= mParentRow.size())
+        return -1;
+    return mParentRow[row];
+}
+
+QVector<int> Interpreter::getChildRows(int parentRow) const {
+    QVector<int> children;
+    if (parentRow < 0 || parentRow >= mParentRow.size())
+        return children;
+
+    for (int i = 0; i < mParentRow.size(); ++i) {
+        if (mParentRow[i] == parentRow)
+            children.append(i);
+    }
+    return children;
 }
 
 int Interpreter::rowCount() {
@@ -82,7 +142,7 @@ M_Command Interpreter::getCommandOf(int row) {
 
     text = text.mid(1).trimmed(); // 先 trim，避免 "@}  " 不匹配
 
-    // ★ 特殊处理 @} 结束标记
+    // 特殊处理 @} 结束标记
     if (text == "}") {
         cmd.type = MP::end;
         mCommandCache[row] = cmd;
@@ -158,7 +218,7 @@ M_Command Interpreter::getCommandOf(int row) {
 
 
 // 解析 "key1=val1,key2=val2" 形式的参数
-void Interpreter::parseArguments(const QString& argPart, QMap<QString, QString>& args) {
+void Interpreter::parseArguments(const QString& argPart, QVector<M_CommandArg>& args) {
     const QStringList pairs = argPart.split(',', Qt::SkipEmptyParts);
     for (const QString& pair : pairs) {
         QString p = pair.trimmed();
@@ -166,10 +226,10 @@ void Interpreter::parseArguments(const QString& argPart, QMap<QString, QString>&
         if (eqIdx > 0) {
             QString key = p.left(eqIdx).trimmed();
             QString val = p.mid(eqIdx + 1).trimmed();
-            args[key] = val;
+            args.append({key,val,true});
         }
         else {
-            // 不符合 key=value 的部分，忽略或合并到 arg 中（由上层处理）
+            args.append({p,"",false});
         }
     }
 }

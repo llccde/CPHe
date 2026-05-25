@@ -14,6 +14,14 @@ namespace awf {
 		system,
 		assistant      // 拼写修正：assintent -> assistant
 	};
+	inline const char* roleToString(Role role) {
+		switch (role) {
+		case user:      return "user";
+		case system:    return "system";
+		case assistant: return "assistant";
+		default:        return "unknown";   // 处理未知角色
+		}
+	}
 	enum TemplateContext {
 		genFunc,
 		genClass,
@@ -22,6 +30,11 @@ namespace awf {
 	struct ChatMessage {
 		Role role;
 		QString message;
+		QString toString() {
+			return QString(
+				"%1:"
+				"%2").arg(roleToString(role)).arg(message);
+		}
 	};
 	class AITask : public QObject {
 		Q_OBJECT

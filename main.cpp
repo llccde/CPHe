@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
     //aic.setBase("https://api.deepseek.com", getFirstLine("E:\\cpp\\qt\\CPHe\\key.txt"), "deepseek-v4-flash", awf::AIClient::deepSeek);
     //aic.set_deepSeek_thinking(false);
     //auto raw = aic.getGen({ {awf::user,"写一个c++函数,接收vector<int>值类型,返回排序后的vector<int>副本,函数名为sortAndRet,只写一个函数,不要写其他任何东西"} });
-    //auto fragment = awf::extract("```cpp", "```",raw.split("\n"));
+    //auto fragment = awf::extractLineBase("```cpp", "```",raw.split("\n"));
    
     //qDebug().noquote() << raw;
     //qDebug()<<"提取";
@@ -35,8 +35,10 @@ int main(int argc, char* argv[])
     //QObject::connect(reply.get(), &awf::AITask::deltaReceived, [](const QString& data) {
     //    qDebug().noquote()<< data.toStdString();
     //});
-    awf::AIWorkFlow af("E:\\cpp\\qt\\CPHe");
-    af.launch("demo.cpp","demo2.cpp");
+    awf::AIWorkFlow af("E:\\cpp\\qt\\CPHe\\AIWork");
+    af.setWrite(false);
+    af.launch("des.cpp","");
+    af.ec.printAll();
     //awf::Interpreter ip(ec);
     //ip.loadFile("E:\\cpp\\qt\\CPHe\\demo.cpp");
     //for (size_t i = 0; i < ip.rowCount(); i++)

@@ -38,11 +38,7 @@ namespace awf {
         QJsonArray jsonMessages;
         for (const auto& msg : promot) {
             QJsonObject obj;
-            switch (msg.role) {
-            case user:      obj["role"] = "user";      break;
-            case system:    obj["role"] = "system";    break;
-            case assistant: obj["role"] = "assistant"; break;
-            }
+            obj["role"] = roleToString(msg.role);
             obj["content"] = msg.message;
             jsonMessages.append(obj);
         }

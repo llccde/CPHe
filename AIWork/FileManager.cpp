@@ -1,4 +1,4 @@
-﻿#include "FileManager.h"
+﻿#include"FileManager.h"
 #include <QFile>
 #include <QTextStream>
 
@@ -59,6 +59,11 @@ namespace awf {
         return true;
     }
 
+    QString& LineBaseFileManager::getOrigin(int row)
+    {
+        return m_originalLines[row];
+    }
+
     // ----- 在原始行 line 之后插入 -----
     void LineBaseFileManager::insertAfterLineOfOrigin(int line, const QString& content)
     {
@@ -78,14 +83,28 @@ namespace awf {
     // ----- 获取完整内容 -----
     QStringList LineBaseFileManager::getContent() const
     {
+        
         QStringList result;
         const int origCount = m_originalLines.size();
+        QVector<bool> uninsertable(origCount, false);
+        QVector<bool> removed(origCount, false);
+        for (auto&rm:m_removed)
+        {
+            for (size_t i = rm.from; i <= rm.to; i++)
+            {
+                removed[i] = true;
+                if (i != rm.to) {
+                    uninsertable[i + 1] = true;
+                }
+            }
+        }
         for (int i = 0; i < origCount; ++i) {
             // 插入在第 i 行之前的行
+            if (uninsertable[i] && !m_records[i].isEmpty())qFatal("insert in remove area");
             for (const auto& rec : m_records[i])
                 result.append(rec.content);
             // 原始行 i
-            result.append(m_originalLines[i]);
+            if(!removed[i])result.append(m_originalLines[i]);
         }
         // 文件末尾插入的行（桶索引 = origCount）
         for (const auto& rec : m_records[origCount])
@@ -98,6 +117,11 @@ namespace awf {
     int LineBaseFileManager::originalLineCount() const
     {
         return m_originalLines.size();
+    }
+
+    void LineBaseFileManager::removeFromTo(int from, int to)
+    {
+        m_removed.append({ from,to });
     }
 
 } // namespace awf

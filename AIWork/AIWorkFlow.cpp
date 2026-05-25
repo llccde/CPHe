@@ -5,6 +5,8 @@
 #include <QDir>
 #include"FileManager.h"
 #include"BaseTool.h"
+#include"qclipboard.h"
+#include"qapplication.h"
 using namespace awf;
 // AIWorkFlow.cpp
 awf::AIWorkFlow::AIWorkFlow(const QString& working)
@@ -47,30 +49,31 @@ M_Command awf::AIWorkFlow::peekNext() {
     return fileProcesser.getCommandOf(index + 1);
 }
 
-void awf::AIWorkFlow::next(bool write) {
+void awf::AIWorkFlow::next() {
     index++;
-    if (write) writeFile(fileProcesser.getSource(index));
-    auto c = getCurrentCommand();
-    if (c.hasMutiLineCommentEnd) inCommentBlock = false;
-    if (c.hasMutiLineCommentBegin) inCommentBlock = true;
 }
 
 bool awf::AIWorkFlow::hasNext() {
     return index + 1 < fileProcesser.rowCount();
 }
 
+bool awf::AIWorkFlow::isCurInCommentBlock()
+{
+    return fileProcesser.isCommentBlockAfter(getCurrentIndex());
+}
+
 void awf::AIWorkFlow::writeFile(const QString& data, int index) {
     auto clean = tool.clearSingleLineBreak(data);
     if (index != -1 && index < fileProcesser.rowCount()) {
         auto data_f = tool.SameTab(clean, fileProcesser.getSource(index));
-        fileBuffer.append(data_f + "\n");
+        fileManeger.insertAfterLineOfOrigin(index,data_f + "\n");
         return;
     }
-    fileBuffer.append(clean + "\n");
+    fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), clean + "\n");
 }
 
-void awf::AIWorkFlow::writeComment(const QString& data, int index) {
-    if (!inCommentBlock) {
+void awf::AIWorkFlow::writeComment(const QString& data) {
+    if (!fileProcesser.isCommentBlockAfter(getCurrentIndex())) {
         writeFile("//" + data, index);
     }
     else {
@@ -78,26 +81,26 @@ void awf::AIWorkFlow::writeComment(const QString& data, int index) {
     }
 }
 
-void awf::AIWorkFlow::writeComment(const QVector<QString> data, int index) {
-    if (!inCommentBlock) {
+void awf::AIWorkFlow::writeComment(const QVector<QString> data) {
+    if (!isCurInCommentBlock()) {
         auto dataC = data;
         tool.clearLineBreak(dataC);
         if (index != -1 && index < fileProcesser.rowCount()) {
             tool.FormatTab(dataC, fileProcesser.getSource(index));
         }
-        fileBuffer.append("/*" + dataC.join("\n") + "*/\n");
+        fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), "/*" + dataC.join("\n") + "*/\n");
     }
     else {
         writeFile(data, index);
     }
 }
 
-void awf::AIWorkFlow::writeSource(const QString& data, int index) {
-    writeSource({ data }, index);
+void awf::AIWorkFlow::writeSource(const QString& data) {
+    writeSource({ data });
 }
 
-void awf::AIWorkFlow::writeSource(const QVector<QString> data, int index) {
-    if (inCommentBlock) {
+void awf::AIWorkFlow::writeSource(const QVector<QString> data) {
+    if (isCurInCommentBlock()) {
         auto dataC = data;
         dataC.push_front("*/");
         dataC.push_back("/*");
@@ -105,7 +108,7 @@ void awf::AIWorkFlow::writeSource(const QVector<QString> data, int index) {
         if (index != -1 && index < fileProcesser.rowCount()) {
             tool.FormatTab(dataC, fileProcesser.getSource(index));
         }
-        fileBuffer.append(dataC.join("\n") + '\n');
+        fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), dataC.join("\n") + '\n');
     }
     else {
         writeFile(data, index);
@@ -118,7 +121,7 @@ void awf::AIWorkFlow::writeFile(const QVector<QString>& data, int index) {
     if (index != -1 && index < fileProcesser.rowCount()) {
         tool.FormatTab(dataC, fileProcesser.getSource(index));
     }
-    fileBuffer.append(dataC.join("\n") + "\n");
+    fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), dataC.join("\n") + "\n");
 }
 
 void awf::AIWorkFlow::riseWarn(const QString& wrn) {
@@ -142,10 +145,7 @@ M_Command awf::AIWorkFlow::justNextCommand() {
     return getCurrentCommand();
 }
 
-M_Command awf::AIWorkFlow::skipNextCommand() {
-    next(false);
-    return getCurrentCommand();
-}
+
 
 void awf::AIWorkFlow::newFileCommand() {
     while (true) {
@@ -185,7 +185,8 @@ void awf::AIWorkFlow::debugger() {
 }
 
 void awf::AIWorkFlow::handleGenLable() {
-    next(false);
+    next();
+    int begin = getCurrentIndex();
     auto _this = getCurrentCommand();
     bool findEnd = false;
     while (true) {
@@ -200,16 +201,19 @@ void awf::AIWorkFlow::handleGenLable() {
                 riseError("非预期匹配的 @genBegin 指令标记");
                 return;
             }
-            skipNextCommand();
             break;
         case MP::genEnd:
+        {
             if (next.getArg("id") == _this.getArg("id")) {
                 findEnd = true;
             }
-            skipNextCommand();
+            justNextCommand();
+            int end = getCurrentIndex();
+            fileManeger.removeFromTo(begin, end);
+
             break;
+        }
         default:
-            skipNextCommand();
             break;
         }
         if (findEnd) break;
@@ -271,6 +275,17 @@ void awf::AIWorkFlow::fillCommand() {
                 findEnd = true;
                 justNextCommand();
                 break;
+            case MP::copyPrompt:{
+                justNextCommand();
+                QVector<QString> data;
+                for (auto& i:promot)
+                {
+                    data.append(i.toString());
+                }
+                data.append(userMessage.toString());
+                QApplication::clipboard()->setText(data.join("\n"));
+                break;
+            }
             default:
                 riseWarn("在@fill 长指令标记 区间内,除去@ref,@end,不支持任何其他指令");
                 justNextCommand();
@@ -288,31 +303,32 @@ void awf::AIWorkFlow::fillCommand() {
         args.append("modelName = " + modelName);
     }
     promot.append(userMessage);
-    writeComment("@genBegin,"+args.join(","),row);
+    writeComment("@genBegin,"+args.join(","));
     // 注意：原代码中使用了未定义的 'user'，此处保持原样
     
-    writeSource(extract("```cpp", "```", aic.getGen(promot, genFunc).split("\n")),row);
-    writeComment("@genEnd,id=" + genID, row);
+    writeSource(extractLineBase("```cpp", "```", aic.getGen(promot, genFunc).split("\n")));
+    writeComment("@genEnd,id=" + genID);
 }
 
 QString awf::AIWorkFlow::handleRef()
 {
     next();  // 移动到当前 @ref 指令
     auto _this = getCurrentCommand();
-
+    assert(_this.type == MP::ref);
     // 简单形式：@ref:some/path
     if (!_this.arg.isEmpty()) {
         return awf::readFileContents(getAbsPath(_this.arg));
     }
 
     // 复杂形式：带参数
-    QString file = _this.getArg(RefArgsClass::toString(RefArgs::atFile));
-    bool callLLM = (_this.getArg(RefArgsClass::toString(RefArgs::callLLM)) == "true");
-    bool cacheAfterCallLLM = (_this.getArg(RefArgsClass::toString(RefArgs::cache)) == "true");
+    QString file = _this.getArg(RefArgsClass::toString(RefArgs::file));
+    bool callLLM = (_this.contains(RefArgsClass::toString(RefArgs::callLLM)));
+    bool cacheAfterCallLLM = (_this.contains(RefArgsClass::toString(RefArgs::cache)));
     QString targetSymbol = _this.getArg(RefArgsClass::toString(RefArgs::symbol));
-
+    QString desMsg = _this.getArg(RefArgsClass::toString(RefArgs::msg));
+    if (cacheAfterCallLLM && !callLLM)callLLM = true;
     if (file.isEmpty()) {
-        riseError("@ref 缺少 atFile 参数");
+        riseError("@ref 缺少 file 参数");
         return "";
     }
 
@@ -333,14 +349,15 @@ QString awf::AIWorkFlow::handleRef()
         }
 
         if (cur.type == MP::record || cur.type == MP::genBegin) {
-            if (cur.getArg(RecordArgsClass::toString(RecordArgs::symbolName)) == targetSymbol) {
+            if (cur.getArg(RecordArgsClass::toString(RecordArgs::symbol)) == targetSymbol) {
                 foundRecord = true;
                 // symbolBegin 未使用，可保留或删除；这里保留原样
                 // int symbolBegin = i;
 
                 // 内层循环收集定义体
                 bool foundEnd = false;
-                for (size_t j = i + 1; j < ip.rowCount(); j++) {
+                size_t j = i + 1;
+                for (; j < ip.rowCount(); j++) {
                     auto innerCur = ip.getCommandOf(j);
 
                     if (!innerCur.getArg(RecordArgsClass::toString(RecordArgs::id)).isEmpty()) {
@@ -358,15 +375,20 @@ QString awf::AIWorkFlow::handleRef()
                         break;  // ← 修正1：立即停止收集
                     }
                     else {
-                        result.append(ip.getSource(j));
+                        if(!ip.isCommandComment(j))result.append(ip.getSource(j));
                     }
                 }
 
                 if (!foundEnd) {
                     riseWarn("文件末尾未闭合的 record/genBegin 标签，无法获取完整 ref 信息");
+                    break;
                 }
-
-                break;  // ← 修正2：只处理第一个匹配的符号
+                else
+                {
+                    result.append("//结束-------------------------");
+                    i = j;
+                }
+                
             }
         }
     }
@@ -383,18 +405,19 @@ QString awf::AIWorkFlow::handleRef()
         // 调用 LLM 定位符号
         QString aiResponse = aic.getGen({
             {system, QString(
-                "在给定文本中,找出符号 \"%1\" 的定义位置的开始和结束行,,"
+                "在给定文本中,找出符号 \"%1\" 的定义位置的开始和结束行,"
+                "%2"
                 "格式为posBegin{beginLine,endLine}posEnd,"
                 "例如在 [line0]class ClassA{[line1]int a=0; [line2]}中获取ClassA的定义位置,"
                 "你应当回复:\"posBegin{0,2}posEnd\","
                 "如有多个定义,或符号名有歧义,也可给出多个范围,以逗号分隔,"
                 "如\"posBegin{12,56},{78,92}posEnd\""
-            ).arg(targetSymbol)},
+            ).arg(targetSymbol).arg(desMsg)}, 
             {system, QString("文本为:\n") + fileContent.join("\n")}
             });
 
         // 提取 AI 返回的行号范围
-        auto dataMayBe = extract("posBegin", "posEnd", aiResponse.split("\n"));
+        auto dataMayBe = extractContent("posBegin", "posEnd", aiResponse);
         auto beginAndEndLines = extractDecimalNumbers(dataMayBe.join("\n"));
 
         // 修正4：优先级与逻辑修复
@@ -418,7 +441,7 @@ QString awf::AIWorkFlow::handleRef()
 
             // 收集定义源代码
             for (int k = begin; k <= end; k++) {
-                result.append(ip.getSource(k));
+                if (!ip.isCommandComment(k))result.append(ip.getSource(k));
             }
             result.append("//结束-------------------------");
 
@@ -431,17 +454,21 @@ QString awf::AIWorkFlow::handleRef()
                 }
                 usedID.insert(QString::number(newId));  // 标记已用
 
-                // 插入 @record 标签（原样保留枚举转换，补全括号）
-                // 拿不准：operatorTypeToString 返回的字符串格式未知，假设为 "record"
+                // 插入 @record 标签
                 lfm.insertBeforeLineOfOrigin(begin,
-                    QString("@%1,%2=%3,%4=%5")
-                    .arg(operatorTypeToString(M_OperatorType::record))        // 原代码缺右括号，已补
-                    .arg(RecordArgsClass::toString(RecordArgs::symbolName))
+                    QString("//@%1,%2=%3,%4=%5")
+                    .arg(operatorTypeToString(M_OperatorType::record))
+                    .arg(RecordArgsClass::toString(RecordArgs::symbol))
                     .arg(targetSymbol)
                     .arg(RecordArgsClass::toString(RecordArgs::id))
                     .arg(QString::number(newId))
                 );
-                // 注意：此处原逻辑只插入了一个标签，如需多个定义则需调整，保持原设计
+                lfm.insertAfterLineOfOrigin(end,
+                    QString("//@%1,%2=%3")
+                    .arg(operatorTypeToString(M_OperatorType::end))
+                    .arg(RecordArgsClass::toString(RecordArgs::id))
+                    .arg(QString::number(newId))
+                );
             }
         }
 
@@ -450,19 +477,27 @@ QString awf::AIWorkFlow::handleRef()
         }
     }
 
-    // 修正6：返回收集到的源代码
+
     return result.join("\n");
 }
 
 void awf::AIWorkFlow::launch(const QString& filePath, const QString& outPath) {
-    fileProcesser.loadFile(getAbsPath(filePath));
-    aic.setBase("https://api.deepseek.com", getFirstLine("E:\\cpp\\qt\\CPHe\\key.txt"), "deepseek-v4-flash", AIClient::deepSeek);
-    aic.set_deepSeek_thinking(true);
+    prepareLaunch(filePath, outPath, -1);
+    
     newFileCommand();
 
-    if (!hasError())
+    if (!hasError()&&doWrite)
         replaceWithFileBufferAndBackup(getAbsPath(filePath), getAbsPath(outPath));
     
+}
+
+void awf::AIWorkFlow::prepareLaunch(const QString& filePath, const QString& outPath, int beginRow)
+{
+    fileProcesser.loadFile(getAbsPath(filePath));
+    aic.setBase("https://api.deepseek.com", getFirstLine("E:\\cpp\\qt\\CPHe\\key.txt"), "deepseek-v4-flash", AIClient::deepSeek);
+    aic.set_deepSeek_thinking(false );
+    fileManeger = LineBaseFileManager(filePath);
+    index = beginRow;
 }
 
 
@@ -470,8 +505,6 @@ void AIWorkFlow::replaceWithFileBufferAndBackup(const QString& filePath, const Q
 {
     QString absSrcPath = getAbsPath(filePath);
     qDebug() << "源文件路径:" << absSrcPath;
-    qDebug().noquote() << "准备写入的内容：\n" << fileBuffer;
-
     // 确定最终写入的目标路径
     QString targetPath;
     bool useBackupMode = false;   // 是否使用备份模式（覆盖原文件并备份）
@@ -503,27 +536,5 @@ void AIWorkFlow::replaceWithFileBufferAndBackup(const QString& filePath, const Q
         }
     }
 
-    // ---- 写入内容到目标文件 ----
-    // 确保目标文件所在目录存在（仅当输出路径与原路径不同时，可能目录未创建）
-    QFileInfo targetInfo(targetPath);
-    QDir targetDir = targetInfo.absoluteDir();
-    if (!targetDir.exists()) {
-        if (!targetDir.mkpath(".")) {
-            riseError("无法创建目标文件所在目录：" + targetDir.absolutePath());
-            return;
-        }
-    }
-
-    QFile file(targetPath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
-        riseError("无法打开目标文件写入：" + targetPath);
-        return;
-    }
-
-    QTextStream out(&file);
-    out << fileBuffer;
-    file.close();
-
-    qDebug() << "成功写入文件:" << targetPath;
-    // 可在此添加文件大小校验等扩展逻辑
+    fileManeger.writeTo(targetPath);
 }

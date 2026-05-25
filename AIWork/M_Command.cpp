@@ -9,8 +9,15 @@ QString M_Command::toString() const {
 
     if (!args.isEmpty()) {
         QStringList pairs;
-        for (auto it = args.cbegin(); it != args.cend(); ++it)
-            pairs << QString("%1=%2").arg(it.key(), it.value());
+        for (auto& i : args)
+            if(i.hasVal)
+            {
+                pairs << QString("%1=%2").arg(i.key, i.val);
+            }
+            else
+            {
+                pairs.append(i.key);
+            }
         parts << QString("args=[%1]").arg(pairs.join(", "));
     }
 
@@ -38,6 +45,22 @@ M_OperatorType awf::stringToOperatorType(const QString& opStr){
 
 const QString& M_Command::getArg(const QString& key) {
     static const QString empty;
-    auto it = args.find(key);
-    return (it != args.end()) ? it.value() : empty;
+    for (auto& i : args) {
+        if (i.key == key) {
+            return i.val;
+        };
+    }
+    return empty;
+}
+
+bool awf::M_Command::contains(const QString& key)
+{
+    for (auto&i:args)
+    {
+        if (i.key == key) {
+            return true;
+        }
+
+    }
+    return false;
 }

@@ -23,6 +23,8 @@ namespace awf {
 			genBegin, genEnd, debugger,
 			nameFunc,
 			moduleName,
+			copyPrompt,
+
 
 			ref,
 			record,recordEnd
@@ -36,10 +38,12 @@ namespace awf {
 	public:
 		enum Arg {
 			notFound,
-			atFile,
+			file,
 			callLLM,
 			cache,
-			symbol
+			msg,
+			symbol,
+			
 		};
 		Q_ENUM(Arg)         // 向元对象系统注册枚举
 
@@ -63,7 +67,7 @@ namespace awf {
 	public:
 		enum Arg {
 			notFound,
-			symbolName,
+			symbol,
 			id
 		};
 		Q_ENUM(Arg)         // 向元对象系统注册枚举
@@ -96,11 +100,16 @@ namespace awf {
 		isBegin,
 		isEnd
 	};
+	struct M_CommandArg {
+		QString key, val;
+		bool hasVal;
+	};
 	class M_Command {
 	public:
 		M_OperatorType type;
-		QMap<QString, QString> args;//@op,arg1=xx,arg2=xx
+		QVector<M_CommandArg> args;//@op,arg1=xx,arg2=xx
 		const QString& getArg(const QString& key);//有则返回,无则返回空值;
+		bool contains(const QString& key);
 		QString arg;//@op arg
 		//mean @fill{.....@end
 		bool isLongOperator = false;
