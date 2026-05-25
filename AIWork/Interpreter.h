@@ -3,61 +3,62 @@
 #include <QString>
 #include <QVector>
 #include <QHash>
+#include <QStack>
 #include "ExceptionCollector.h"
-#include"qobject.h"
-#include"M_Command.h"
+#include "qobject.h"
+#include "M_Command.h"
+
 namespace awf {
 
-	
-	class Interpreter {
-		ExceptionCollector& ec;
-	public:
-		Interpreter(ExceptionCollector& ec) :ec(ec) {}
-		void riseWarning(const QString& wrn) {
-			ec.riseWrn(wrn);
-		}
-		void loadFile(QString filePath);
-		/*is注释行(row)->bool{
-			return (行不包含任何非注释代码(row))
-		}
-		if(is注释行(row)){
-			if(注释内容以@开头(row)){
-				if(结构为 "@op ?argData"){
-					return{type=op}
-				}if(结构为 "@op{" ){
-					return{type=op,islongop=true}
-				}if(结构为 "@op,arg1=s1,argx=sx"){
-					return {type = op,args = {arg1=s1,argx=sx}}
-				}
-			}else{
-				return {type = normalComment,arg=注释内容(row)}
-			}
-		}else{
-			return {type = notCommand,arg=行内容(row)}
-		}*/
-		M_Command getCommandOf(int row);
-		bool isCommandComment(int row);
-		QString getSource(int row);
-		int rowCount();
-	public:
-		// 判断在 b 行之后插入一行是否会处于多行注释块内
-		// b 可以为 -1（文件最开头）或 rowCount()-1（最后一行之后）
-		bool isCommentBlockAfter(int b) const;
+    class TreeNode; // 前向声明
 
-		// 获取某一行的父指令行号（即包含它的最近的长指令开始行），若无则返回 -1
-		int getParentRow(int row) const;
+    class Interpreter {
+        ExceptionCollector& ec;
+    public:
+        Interpreter(ExceptionCollector& ec);
+        ~Interpreter();
 
-		// 获取指定长指令开始行的所有直接子指令的行号列表（包括嵌套块的整体）
-		QVector<int> getChildRows(int parentRow) const;
+        void riseWarning(const QString& wrn);
+        void loadFile(QString filePath);
+        bool hasCommand(int row);
+        M_Command getCommandOf(int row);
+        bool isCommandComment(int row);
+        QString getSource(int row);
+        int rowCount();
 
-		// === 在类定义的 private 部分添加 ===
-	private:
-		QVector<bool> mInBlockAfterLine;   // 索引 i 表示处理完第 i-1 行后的注释块状态，长度为 rowCount+1
-		QVector<int>  mParentRow;          // 每行的父长指令开始行索引，-1 表示顶层
-	private:
-		QVector<LineInfo> mLines;
-		mutable QHash<int, M_Command> mCommandCache; // 缓存解析结果
+        bool isCommentBlockAfter(int b) const;
+        int getParentRow(int row) const;
+        QVector<int> getChildRows(int parentRow) const;
 
-		void parseArguments(const QString& argPart, QVector<M_CommandArg>& args);
-	};
-}
+        TreeNode* rootNode() const { return mRootNode; }
+
+    private:
+        struct ParseState {
+            int row;
+            QString originalLine;
+            QString commentText;
+            int commentStartCol;  // commentText 在 originalLine 中的起始列（0-based）
+        };
+
+        // 递归下降解析核心
+        bool parseCommandLine(const ParseState& state, M_Command& outCmd, TreeNode*& outNode);
+        M_OperatorType parseOperator(const QString& text, int row, int colStart, TreeNode*& outNode);
+        QVector<M_CommandArg> parseArgList(const QString& argPart, int row, int colStart, TreeNode*& outNode);
+        M_CommandArg parseArgItem(const QString& itemStr, int row, int colStart, TreeNode*& outNode);
+        QString parseSingleArg(const QString& rest, int row, int colStart, TreeNode*& outNode);
+
+        void setNodePos(TreeNode* node, int row, int colStart, int length);
+
+        // 从语法树构建缓存和父子行数组
+        void buildCacheFromTree();
+        void buildCacheRecursive(TreeNode* node, QHash<int, M_Command>& cache,
+            QVector<int>& parentRow, int parentRowIdx);
+
+        QVector<LineInfo> mLines;
+        mutable QHash<int, M_Command> mCommandCache;
+        QVector<bool> mInBlockAfterLine;
+        QVector<int> mParentRow;
+        TreeNode* mRootNode = nullptr;
+    };
+
+} // namespace awf

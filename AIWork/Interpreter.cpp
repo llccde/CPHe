@@ -1,77 +1,444 @@
-﻿// interpreter.cpp
-#include"Interpreter.h"
-#include"ClangTool.h"
+﻿#include "Interpreter.h"
 #include <QRegularExpression>
-#include"CommentTool.h"
-#include<qstack.h>
+#include "CommentTool.h"
+#include <QStack>
+
 using namespace awf;
+
+// ---------- TreeNode 定义 ----------
+class awf::TreeNode {
+public:
+    enum Type {
+        Root,
+        Command,
+        LongCommandScope,
+        CommandOperator,
+        SingleArg,
+        ArgList,
+        ArgItem,
+        ArgKey,
+        ArgVal,
+        NaturalText,
+        Error
+    };
+
+    Type type;
+    int lineBegin, lineEnd;
+    int colBegin, colEnd;
+    TreeNode* parent = nullptr;
+    QVector<TreeNode*> children;
+
+    M_OperatorType opType = M_OperatorType::notCommand;
+    QString text;
+
+    TreeNode(Type t) : type(t) {}
+    ~TreeNode() { qDeleteAll(children); }
+};
+
+// ---------- Interpreter 实现 ----------
+Interpreter::Interpreter(ExceptionCollector& ec) : ec(ec) {}
+
+Interpreter::~Interpreter() {
+    delete mRootNode;
+}
+
+void Interpreter::riseWarning(const QString& wrn) {
+    ec.riseWrn(wrn);
+}
+
+void Interpreter::setNodePos(TreeNode* node, int row, int colStart, int length) {
+    node->lineBegin = node->lineEnd = row;
+    node->colBegin = colStart;
+    node->colEnd = colStart + length;
+}
+
+M_OperatorType Interpreter::parseOperator(const QString& text, int row, int colStart, TreeNode*& outNode) {
+    outNode = new TreeNode(TreeNode::CommandOperator);
+    M_OperatorType type = stringToOperatorType(text);
+    outNode->opType = type;
+    outNode->text = text;
+    setNodePos(outNode, row, colStart, text.length());
+    return type;
+}
+
+M_CommandArg Interpreter::parseArgItem(const QString& itemStr, int row, int colStart, TreeNode*& outNode) {
+    outNode = new TreeNode(TreeNode::ArgItem);
+    setNodePos(outNode, row, colStart, itemStr.length());
+
+    M_CommandArg arg;
+    int eqIdx = itemStr.indexOf('=');
+    if (eqIdx > 0) {
+        QString key = itemStr.left(eqIdx).trimmed();
+        QString val = itemStr.mid(eqIdx + 1).trimmed();
+        arg.key = key;
+        arg.val = val;
+        arg.hasVal = true;
+
+        TreeNode* keyNode = new TreeNode(TreeNode::ArgKey);
+        keyNode->text = key;
+        setNodePos(keyNode, row, colStart, key.length());
+        outNode->children.append(keyNode);
+        keyNode->parent = outNode;
+
+        TreeNode* valNode = new TreeNode(TreeNode::ArgVal);
+        valNode->text = val;
+        setNodePos(valNode, row, colStart + eqIdx + 1, val.length());
+        outNode->children.append(valNode);
+        valNode->parent = outNode;
+    }
+    else {
+        QString flag = itemStr.trimmed();
+        arg.key = flag;
+        arg.hasVal = false;
+
+        TreeNode* keyNode = new TreeNode(TreeNode::ArgKey);
+        keyNode->text = flag;
+        setNodePos(keyNode, row, colStart, flag.length());
+        outNode->children.append(keyNode);
+        keyNode->parent = outNode;
+    }
+    return arg;
+}
+
+QVector<M_CommandArg> Interpreter::parseArgList(const QString& argPart, int row, int colStart, TreeNode*& outNode) {
+    outNode = new TreeNode(TreeNode::ArgList);
+    setNodePos(outNode, row, colStart, argPart.length());
+
+    QVector<M_CommandArg> args;
+    const QStringList items = argPart.split(',', Qt::SkipEmptyParts);
+    int currentCol = colStart;
+    for (const QString& item : items) {
+        QString trimmed = item.trimmed();
+        if (trimmed.isEmpty()) continue;
+
+        int idx = argPart.indexOf(item, currentCol - colStart);
+        int itemColStart = (idx >= 0) ? colStart + idx : currentCol;
+
+        TreeNode* itemNode = nullptr;
+        M_CommandArg arg = parseArgItem(trimmed, row, itemColStart, itemNode);
+        args.append(arg);
+        outNode->children.append(itemNode);
+        itemNode->parent = outNode;
+
+        currentCol = itemColStart + item.length() + 1;
+    }
+    return args;
+}
+
+QString Interpreter::parseSingleArg(const QString& rest, int row, int colStart, TreeNode*& outNode) {
+    outNode = new TreeNode(TreeNode::SingleArg);
+    outNode->text = rest;
+    setNodePos(outNode, row, colStart, rest.length());
+    return rest;
+}
+
+bool Interpreter::parseCommandLine(const ParseState& state, M_Command& outCmd, TreeNode*& outNode) {
+    outCmd = M_Command();
+    QString text = state.commentText.mid(1).trimmed(); // 去 '@'
+    if (text.isEmpty()) return false;
+
+    QRegularExpression re("^([A-Za-z_][A-Za-z0-9_]*)");
+    auto match = re.match(text);
+    if (!match.hasMatch()) return false;
+
+    QString opName = match.captured(1);
+    int opColStart = state.commentStartCol + 1; // '@' 之后第一个字符
+    TreeNode* opNode = nullptr;
+    M_OperatorType opType = parseOperator(opName, state.row, opColStart, opNode);
+    outCmd.type = opType;
+
+    QString rest = text.mid(match.capturedLength()).trimmed();
+    bool isLong = false;
+
+    auto cmdNode = new TreeNode(TreeNode::Command);
+    setNodePos(cmdNode, state.row, state.commentStartCol, state.commentText.length());
+    cmdNode->children.append(opNode);
+    opNode->parent = cmdNode;
+
+    if (rest.startsWith('{')) {
+        isLong = true;
+        outCmd.isLongOperator = true;
+        rest = rest.mid(1).trimmed();
+        int descColStart = opColStart + match.capturedLength() + 1;
+        if (!rest.isEmpty()) {
+            TreeNode* descNode = nullptr;
+            QString desc = parseSingleArg(rest, state.row, descColStart, descNode);
+            outCmd.arg = desc;
+            cmdNode->children.append(descNode);
+            descNode->parent = cmdNode;
+        }
+        // 长指令作用域将在 loadFile 中创建
+    }
+    else if (rest.startsWith(',')) {
+        rest = rest.mid(1);
+        int argColStart = opColStart + match.capturedLength() + 1;
+        TreeNode* argListNode = nullptr;
+        QVector<M_CommandArg> args = parseArgList(rest, state.row, argColStart, argListNode);
+        outCmd.args = args;
+        cmdNode->children.append(argListNode);
+        argListNode->parent = cmdNode;
+    }
+    else if (rest.startsWith(':')) {
+        rest = rest.mid(1).trimmed();
+        int descColStart = opColStart + match.capturedLength() + 1;
+        TreeNode* descNode = nullptr;
+        QString desc = parseSingleArg(rest, state.row, descColStart, descNode);
+        outCmd.arg = desc;
+        cmdNode->children.append(descNode);
+        descNode->parent = cmdNode;
+    }
+    else if (!rest.isEmpty()) {
+        int descColStart = opColStart + match.capturedLength() + 1;
+        TreeNode* descNode = nullptr;
+        QString desc = parseSingleArg(rest, state.row, descColStart, descNode);
+        outCmd.arg = desc;
+        cmdNode->children.append(descNode);
+        descNode->parent = cmdNode;
+    }
+
+    outNode = cmdNode;
+    return true;
+}
+
+// ---------- 核心：loadFile ----------
 void Interpreter::loadFile(QString filePath) {
     CommentTool tool;
     mLines = tool.analyzeFile(filePath, "//", "/*", "*/");
     mCommandCache.clear();
+    mParentRow.clear();
+    mInBlockAfterLine.clear();
 
-    // 计算注释块状态
     mInBlockAfterLine.resize(mLines.size() + 1);
     bool inBlock = false;
-    mInBlockAfterLine[0] = inBlock; // 文件开始前
+    mInBlockAfterLine[0] = inBlock;
 
-    // 构建父子关系
     mParentRow.resize(mLines.size());
-    QStack<int> longBlockStack;
+
+    delete mRootNode;
+    mRootNode = new TreeNode(TreeNode::Root);
+
+    QStack<TreeNode*> scopeStack;
+    scopeStack.push(mRootNode);
+    QStack<int> longBlockRows;   // 记录当前长指令开始行，用于设置 mParentRow
 
     for (int i = 0; i < mLines.size(); ++i) {
-        // 1. 注释块状态更新（基于当前行的多行注释标记）
-        if (mLines[i].hasMutiLineCommentBegin && !mLines[i].hasMutiLineCommentEnd)
+        const LineInfo& line = mLines[i];
+
+        // 更新多行注释块状态
+        if (line.hasMutiLineCommentBegin && !line.hasMutiLineCommentEnd)
             inBlock = true;
-        else if (mLines[i].hasMutiLineCommentEnd && !mLines[i].hasMutiLineCommentBegin)
+        else if (line.hasMutiLineCommentEnd && !line.hasMutiLineCommentBegin)
             inBlock = false;
-        // 若同时出现 begin 和 end（同一行闭合），状态不变
         mInBlockAfterLine[i + 1] = inBlock;
 
-        // 2. 主动解析命令并建立父子关系
-        M_Command cmd = getCommandOf(i);      // 自动写入缓存
-        mParentRow[i] = longBlockStack.isEmpty() ? -1 : longBlockStack.top();
+        // 计算当前行的父行（隶属于哪个长指令）
+        int parent = longBlockRows.isEmpty() ? -1 : longBlockRows.top();
+        mParentRow[i] = parent;
 
-        if (cmd.isLongOperator) {
-            longBlockStack.push(i);
+        // ------------------- 处理非注释行（纯代码） -------------------
+        if (!line.isCommentOnly) {
+            M_Command cmd;
+            cmd.type = MP::notCommand;
+            cmd.arg = line.rawLine;
+            mCommandCache[i] = cmd;
+
+            // 语法树：在任意作用域下都添加 NaturalText 节点
+            auto txtNode = new TreeNode(TreeNode::NaturalText);
+            txtNode->text = line.rawLine;
+            setNodePos(txtNode, i, 0, line.rawLine.length());
+            scopeStack.top()->children.append(txtNode);
+            txtNode->parent = scopeStack.top();
+            continue;
         }
-        else if (cmd.type == MP::end) {
-            if (!longBlockStack.isEmpty())
-                longBlockStack.pop();
-            // 不匹配的 @end 可忽略或记录警告（此处保持静默）
+
+        // ------------------- 处理注释行 -------------------
+        QString commentText = line.commentText.trimmed();
+
+        // 1. 不以 '@' 开头 → 普通注释
+        if (!commentText.startsWith('@')) {
+            M_Command cmd;
+            cmd.type = MP::normalComment;
+            cmd.arg = line.rawLine;   // 保留原始行，便于后续查看
+            mCommandCache[i] = cmd;
+
+            // 语法树添加 NaturalText（即使不在长指令内，也体现注释）
+            auto txtNode = new TreeNode(TreeNode::NaturalText);
+            txtNode->text = line.rawLine;
+            setNodePos(txtNode, i, 0, line.rawLine.length());
+            scopeStack.top()->children.append(txtNode);
+            txtNode->parent = scopeStack.top();
+            continue;
+        }
+
+        // 2. 检查 @} 结束标记
+        if (commentText.mid(1).trimmed() == "}") {
+            M_Command cmd;
+            cmd.type = MP::end;
+            mCommandCache[i] = cmd;
+            // 不在语法树中为该行生成节点（它是控制标记）
+
+            if (scopeStack.size() > 1 && scopeStack.top()->type == TreeNode::LongCommandScope) {
+                TreeNode* closedScope = scopeStack.pop();
+                closedScope->lineEnd = i;
+                if (!longBlockRows.isEmpty()) longBlockRows.pop();
+            }
+            continue;
+        }
+
+        // 3. 尝试作为指令解析（包括 @msg, @fill, @ref 等）
+        ParseState state;
+        state.row = i;
+        state.originalLine = line.rawLine;
+        state.commentText = commentText;
+        int firstNonSpace = 0;
+        while (firstNonSpace < state.originalLine.length() &&
+            state.originalLine[firstNonSpace].isSpace())
+            ++firstNonSpace;
+        state.commentStartCol = firstNonSpace;
+
+        M_Command cmd;
+        TreeNode* cmdNode = nullptr;
+        if (parseCommandLine(state, cmd, cmdNode)) {
+            // 成功解析为指令
+            mCommandCache[i] = cmd;
+            mParentRow[i] = parent;  // 更新父行（前面已设，但可保留）
+
+            scopeStack.top()->children.append(cmdNode);
+            cmdNode->parent = scopeStack.top();
+
+            // 长指令：创建作用域并压栈
+            if (cmd.isLongOperator) {
+                auto scopeNode = new TreeNode(TreeNode::LongCommandScope);
+                scopeNode->lineBegin = i;
+                scopeNode->lineEnd = -1;
+                cmdNode->children.append(scopeNode);
+                scopeNode->parent = cmdNode;
+                scopeStack.push(scopeNode);
+                longBlockRows.push(i);
+            }
+        }
+        else {
+            // 解析失败（格式错误），降级为普通注释
+            M_Command fallback;
+            fallback.type = MP::normalComment;
+            fallback.arg = line.rawLine;
+            mCommandCache[i] = fallback;
+
+            auto txtNode = new TreeNode(TreeNode::NaturalText);
+            txtNode->text = line.rawLine;
+            setNodePos(txtNode, i, 0, line.rawLine.length());
+            scopeStack.top()->children.append(txtNode);
+            txtNode->parent = scopeStack.top();
+        }
+    }
+
+    // 处理文件结束时仍未闭合的长作用域
+    while (scopeStack.size() > 1) {
+        TreeNode* node = scopeStack.pop();
+        if (node->type == TreeNode::LongCommandScope && node->lineEnd == -1)
+            node->lineEnd = mLines.size() - 1;
+    }
+}
+
+// ---------- 从语法树构建缓存（备用或刷新用） ----------
+void Interpreter::buildCacheFromTree() {
+    if (!mRootNode) return;
+    mCommandCache.clear();
+    mParentRow.clear();
+    mParentRow.resize(mLines.size());
+    buildCacheRecursive(mRootNode, mCommandCache, mParentRow, -1);
+}
+
+void Interpreter::buildCacheRecursive(TreeNode* node, QHash<int, M_Command>& cache,
+    QVector<int>& parentRow, int parentRowIdx) {
+    if (!node) return;
+    for (TreeNode* child : node->children) {
+        if (child->type == TreeNode::Command) {
+            // 从子节点重建 M_Command（假设 Command 节点的第一个子节点是 CommandOperator）
+            M_Command cmd;
+            if (child->children.size() > 0 && child->children[0]->type == TreeNode::CommandOperator) {
+                cmd.type = child->children[0]->opType;
+                // 收集其他子节点：ArgList / SingleArg / LongCommandScope
+                for (int i = 1; i < child->children.size(); ++i) {
+                    TreeNode* sub = child->children[i];
+                    if (sub->type == TreeNode::SingleArg) {
+                        cmd.arg = sub->text;
+                    }
+                    else if (sub->type == TreeNode::ArgList) {
+                        // 从 ArgList 的子节点重建 args
+                        for (TreeNode* item : sub->children) {
+                            M_CommandArg arg;
+                            if (item->type == TreeNode::ArgItem) {
+                                // ArgItem 下可能有 ArgKey 和 ArgVal
+                                TreeNode* keyNode = nullptr;
+                                TreeNode* valNode = nullptr;
+                                for (TreeNode* grand : item->children) {
+                                    if (grand->type == TreeNode::ArgKey) keyNode = grand;
+                                    else if (grand->type == TreeNode::ArgVal) valNode = grand;
+                                }
+                                if (keyNode) {
+                                    arg.key = keyNode->text;
+                                    if (valNode) {
+                                        arg.val = valNode->text;
+                                        arg.hasVal = true;
+                                    }
+                                    else {
+                                        arg.hasVal = false;
+                                    }
+                                }
+                            }
+                            cmd.args.append(arg);
+                        }
+                    }
+                    else if (sub->type == TreeNode::LongCommandScope) {
+                        // 长指令，标记 isLongOperator
+                        cmd.isLongOperator = true;
+                    }
+                }
+            }
+            int row = child->lineBegin;
+            if (row >= 0 && row < mLines.size()) {
+                cache[row] = cmd;
+                parentRow[row] = parentRowIdx;
+            }
+
+            // 递归处理长指令内的子指令
+            if (child->children.size() > 0) {
+                // 找到 LongCommandScope 节点
+                for (TreeNode* sub : child->children) {
+                    if (sub->type == TreeNode::LongCommandScope) {
+                        // 该长作用域内的指令的父行是当前指令的行
+                        buildCacheRecursive(sub, cache, parentRow, row);
+                    }
+                }
+            }
+        }
+        else if (child->type == TreeNode::LongCommandScope) {
+            // 直接作用域（不应出现在顶层？）
+            buildCacheRecursive(child, cache, parentRow, parentRowIdx);
+        }
+        else {
+            // Root, NaturalText 等继续递归
+            buildCacheRecursive(child, cache, parentRow, parentRowIdx);
         }
     }
 }
 
-bool Interpreter::isCommentBlockAfter(int b) const {
-    // b 的有效范围 [-1, rowCount()-1]
-    if (b < -1) return false;
-    int idx = b + 1; // 映射到 mInBlockAfterLine 的索引
-    if (idx < 0 || idx >= mInBlockAfterLine.size())
-        return false;
-    return mInBlockAfterLine[idx];
+// ---------- 原有查询接口 ----------
+M_Command Interpreter::getCommandOf(int row) {
+    if (mCommandCache.contains(row))
+        return mCommandCache[row];
+    return M_Command();
 }
-
-int Interpreter::getParentRow(int row) const {
-    if (row < 0 || row >= mParentRow.size())
-        return -1;
-    return mParentRow[row];
+bool awf::Interpreter::hasCommand(int row)
+{
+    return mCommandCache.contains(row);
 }
-
-QVector<int> Interpreter::getChildRows(int parentRow) const {
-    QVector<int> children;
-    if (parentRow < 0 || parentRow >= mParentRow.size())
-        return children;
-
-    for (int i = 0; i < mParentRow.size(); ++i) {
-        if (mParentRow[i] == parentRow)
-            children.append(i);
-    }
-    return children;
-}
-
-int Interpreter::rowCount() {
-    return mLines.size();
+bool Interpreter::isCommandComment(int row) {
+    if (row < 0 || row >= mLines.size()) return false;
+    if (!mLines[row].isCommentOnly) return false;
+    QString text = mLines[row].commentText.trimmed();
+    return text.startsWith('@');
 }
 
 QString Interpreter::getSource(int row) {
@@ -79,157 +446,28 @@ QString Interpreter::getSource(int row) {
     return mLines[row].rawLine;
 }
 
-bool Interpreter::isCommandComment(int row) {
-    if (row < 0 || row >= mLines.size()) return false;
-    if (!mLines[row].isCommentOnly) return false;
-    // 注释内容去掉前导空白后是否以 '@' 开头
-    QString text = mLines[row].commentText.trimmed();
-    return text.startsWith('@');
+int Interpreter::rowCount() {
+    return mLines.size();
 }
 
-M_Command Interpreter::getCommandOf(int row) {
-    if (mCommandCache.contains(row)) {
-        return mCommandCache[row];
-    }
-
-    M_Command cmd;
-    if (row >= 0 && row < mLines.size()) {
-        cmd.hasMutiLineCommentBegin = mLines[row].hasMutiLineCommentBegin;
-        cmd.hasMutiLineCommentEnd = mLines[row].hasMutiLineCommentEnd;
-    }
-    else {
-        cmd.hasMutiLineCommentBegin = false;
-        cmd.hasMutiLineCommentEnd = false;
-    }
-
-
-    cmd.type = M_OperatorType::notCommand;
-
-    if (row < 0 || row >= mLines.size()) {
-        mCommandCache[row] = cmd;
-        return cmd;
-    }
-
-    const LineInfo& line = mLines[row];
-
-    if (!line.isCommentOnly) {
-        cmd.type = M_OperatorType::notCommand;
-        cmd.arg = line.rawLine;
-        mCommandCache[row] = cmd;
-        return cmd;
-    }
-
-    // 注释行
-    QString text = line.commentText.trimmed();
-    if (text.startsWith('*')) {
-        for (auto c:text)
-        {
-            if (c == ' ' || c == '*') {
-                continue;
-            }
-            else if(c=='@'){
-                riseWarning("comment line start with '*',and has '@' at right,if it should be a command comment,please remove any '*' before'@' ");
-            }
-        }
-       
-    }
-    if (!text.startsWith('@')) {
-        // 普通注释
-        cmd.type = M_OperatorType::normalComment;
-        mCommandCache[row] = cmd;
-        return cmd;
-    }
-
-    text = text.mid(1).trimmed(); // 先 trim，避免 "@}  " 不匹配
-
-    // 特殊处理 @} 结束标记
-    if (text == "}") {
-        cmd.type = MP::end;
-        mCommandCache[row] = cmd;
-        return cmd;
-    }
-
-
-
-    QRegularExpression re("^([A-Za-z_][A-Za-z0-9_]*)(.*)$");
-    QRegularExpressionMatch match = re.match(text);
-    if (!match.hasMatch()) {
-        // 不合法格式，视为普通注释（但 @} 已经在上面处理了）
-        cmd.type = M_OperatorType::normalComment;
-        cmd.arg = line.commentText;
-        mCommandCache[row] = cmd;
-        return cmd;
-    }
-
-    QString opName = match.captured(1);
-    QString rest = match.captured(2).trimmed();
-
-    // 将操作符字符串转为枚举
-    cmd.type = stringToOperatorType(opName);
-    if (cmd.type == MP::notCommand) {
-        cmd.arg = line.rawLine;
-        ec.riseWrn("无效的指令标记 \"" + opName+"\"");
-    }
-    // 处理长标记 @xxx{
-    if (rest.startsWith('{')) {
-        cmd.isLongOperator = true;
-        // 去掉开头的 '{'，后面可能还有参数（如 @fill{ 后面直接跟换行）
-        // 当前设计中长标记的 '{' 后一般换行，不直接跟参数；但可兼容
-        rest = rest.mid(1).trimmed();
-        // 如果后面还有内容，当作 arg 的第一行
-        if (!rest.isEmpty()) {
-            cmd.arg = rest;
-        }
-    }
-    // 处理参数：@fill,arg1=val1,arg2=val2 或 @fill arg 或 @fill: arg
-    else if (rest.startsWith(',')) {
-        // 参数形式
-        rest = rest.mid(1); // 跳过逗号
-        parseArguments(rest, cmd.args);
-        // 如果有剩余未解析为 key=value 的纯文本，存入 arg
-        // 此处简单处理：如果不是 key=value 对，整段作为 arg
-        // 更健壮的方式：找到第一个空格前的部分为 arg，但需结合语法设计
-        // 假设当前设计： @fill,arg1=xx,arg2=xx 没有独立 arg
-    }
-    else if (rest.startsWith(':')) {
-        // @fill: 描述
-        cmd.arg = rest.mid(1).trimmed();
-    }
-    else {
-        // @fill 描述 （空格分隔）
-        cmd.arg = rest;
-    }
-
-    // 如果没有 arg 且不是长标记，可能 args 中有原始描述，进一步处理
-    // 简单起见，如果 cmd.arg 为空且不是长标记，则将整个 rest 作为 arg
-    if (cmd.arg.isEmpty() && !cmd.isLongOperator && cmd.args.isEmpty()) {
-        cmd.arg = rest;
-    }
-
-
-
-    mCommandCache[row] = cmd;
-
-
-
-
-    return cmd;
+bool Interpreter::isCommentBlockAfter(int b) const {
+    if (b < -1) return false;
+    int idx = b + 1;
+    if (idx < 0 || idx >= mInBlockAfterLine.size()) return false;
+    return mInBlockAfterLine[idx];
 }
 
+int Interpreter::getParentRow(int row) const {
+    if (row < 0 || row >= mParentRow.size()) return -1;
+    return mParentRow[row];
+}
 
-// 解析 "key1=val1,key2=val2" 形式的参数
-void Interpreter::parseArguments(const QString& argPart, QVector<M_CommandArg>& args) {
-    const QStringList pairs = argPart.split(',', Qt::SkipEmptyParts);
-    for (const QString& pair : pairs) {
-        QString p = pair.trimmed();
-        int eqIdx = p.indexOf('=');
-        if (eqIdx > 0) {
-            QString key = p.left(eqIdx).trimmed();
-            QString val = p.mid(eqIdx + 1).trimmed();
-            args.append({key,val,true});
-        }
-        else {
-            args.append({p,"",false});
-        }
+QVector<int> Interpreter::getChildRows(int parentRow) const {
+    QVector<int> children;
+    if (parentRow < 0 || parentRow >= mParentRow.size()) return children;
+    for (int i = 0; i < mParentRow.size(); ++i) {
+        if (mParentRow[i] == parentRow)
+            children.append(i);
     }
+    return children;
 }

@@ -35,9 +35,20 @@ int main(int argc, char* argv[])
     //QObject::connect(reply.get(), &awf::AITask::deltaReceived, [](const QString& data) {
     //    qDebug().noquote()<< data.toStdString();
     //});
+    awf::ExceptionCollector ec;
+    awf::Interpreter ip(ec);
+    ip.loadFile("E:\\cpp\\qt\\CPHe\\AIWork\\des.cpp");
+    for (size_t i = 0; i < ip.rowCount(); i++)
+    {
+        qDebug().noquote() << ip.getCommandOf(i).toString();
+    }
+
+
+
     awf::AIWorkFlow af("E:\\cpp\\qt\\CPHe\\AIWork");
     af.setWrite(false);
     af.launch("des.cpp","");
+    
     af.ec.printAll();
     //awf::Interpreter ip(ec);
     //ip.loadFile("E:\\cpp\\qt\\CPHe\\demo.cpp");
