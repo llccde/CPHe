@@ -2,44 +2,12 @@
 #include <QRegularExpression>
 #include "CommentTool.h"
 #include <QStack>
-
+#include"SyntaxTree.h"
 using namespace awf;
 
-// ---------- TreeNode 定义 ----------
-class awf::TreeNode {
-public:
-    enum Type {
-        Root,
-        Command,
-        LongCommandScope,
-        CommandOperator,
-        SingleArg,
-        ArgList,
-        ArgItem,
-        ArgKey,
-        ArgVal,
-        NaturalText,
-        Error
-    };
-
-    Type type;
-    int lineBegin, lineEnd;
-    int colBegin, colEnd;
-    TreeNode* parent = nullptr;
-    QVector<TreeNode*> children;
-
-    M_OperatorType opType = M_OperatorType::notCommand;
-    QString text;
-
-    TreeNode(Type t) : type(t) {}
-    ~TreeNode() { qDeleteAll(children); }
-};
-
-// ---------- Interpreter 实现 ----------
 Interpreter::Interpreter(ExceptionCollector& ec) : ec(ec) {}
 
 Interpreter::~Interpreter() {
-    delete mRootNode;
 }
 
 void Interpreter::riseWarning(const QString& wrn) {
@@ -137,6 +105,7 @@ bool Interpreter::parseCommandLine(const ParseState& state, M_Command& outCmd, T
     QString text = state.commentText.mid(1).trimmed(); // 去 '@'
     if (text.isEmpty()) return false;
 
+    // 特殊处理：@} 会作为 end 指令被 loadFile 直接处理，不进入此处
     QRegularExpression re("^([A-Za-z_][A-Za-z0-9_]*)");
     auto match = re.match(text);
     if (!match.hasMatch()) return false;
@@ -148,7 +117,6 @@ bool Interpreter::parseCommandLine(const ParseState& state, M_Command& outCmd, T
     outCmd.type = opType;
 
     QString rest = text.mid(match.capturedLength()).trimmed();
-    bool isLong = false;
 
     auto cmdNode = new TreeNode(TreeNode::Command);
     setNodePos(cmdNode, state.row, state.commentStartCol, state.commentText.length());
@@ -156,7 +124,7 @@ bool Interpreter::parseCommandLine(const ParseState& state, M_Command& outCmd, T
     opNode->parent = cmdNode;
 
     if (rest.startsWith('{')) {
-        isLong = true;
+        // 长指令标记：只影响 isLongOperator 属性，不创建作用域
         outCmd.isLongOperator = true;
         rest = rest.mid(1).trimmed();
         int descColStart = opColStart + match.capturedLength() + 1;
@@ -167,7 +135,7 @@ bool Interpreter::parseCommandLine(const ParseState& state, M_Command& outCmd, T
             cmdNode->children.append(descNode);
             descNode->parent = cmdNode;
         }
-        // 长指令作用域将在 loadFile 中创建
+        // 不再创建 LongCommandScope 节点
     }
     else if (rest.startsWith(',')) {
         rest = rest.mid(1);
@@ -200,7 +168,7 @@ bool Interpreter::parseCommandLine(const ParseState& state, M_Command& outCmd, T
     return true;
 }
 
-// ---------- 核心：loadFile ----------
+// ---------- 核心：loadFile（已移除 LongCommandScope）----------
 void Interpreter::loadFile(QString filePath) {
     CommentTool tool;
     mLines = tool.analyzeFile(filePath, "//", "/*", "*/");
@@ -214,12 +182,7 @@ void Interpreter::loadFile(QString filePath) {
 
     mParentRow.resize(mLines.size());
 
-    delete mRootNode;
-    mRootNode = new TreeNode(TreeNode::Root);
-
-    QStack<TreeNode*> scopeStack;
-    scopeStack.push(mRootNode);
-    QStack<int> longBlockRows;   // 记录当前长指令开始行，用于设置 mParentRow
+    mRootNode.reset(new TreeNode(TreeNode::Root));
 
     for (int i = 0; i < mLines.size(); ++i) {
         const LineInfo& line = mLines[i];
@@ -231,9 +194,8 @@ void Interpreter::loadFile(QString filePath) {
             inBlock = false;
         mInBlockAfterLine[i + 1] = inBlock;
 
-        // 计算当前行的父行（隶属于哪个长指令）
-        int parent = longBlockRows.isEmpty() ? -1 : longBlockRows.top();
-        mParentRow[i] = parent;
+        // 所有指令平级，无父子关系
+        mParentRow[i] = -1;
 
         // ------------------- 处理非注释行（纯代码） -------------------
         if (!line.isCommentOnly) {
@@ -242,12 +204,11 @@ void Interpreter::loadFile(QString filePath) {
             cmd.arg = line.rawLine;
             mCommandCache[i] = cmd;
 
-            // 语法树：在任意作用域下都添加 NaturalText 节点
             auto txtNode = new TreeNode(TreeNode::NaturalText);
             txtNode->text = line.rawLine;
             setNodePos(txtNode, i, 0, line.rawLine.length());
-            scopeStack.top()->children.append(txtNode);
-            txtNode->parent = scopeStack.top();
+            mRootNode->children.append(txtNode);
+            txtNode->parent = mRootNode.get();
             continue;
         }
 
@@ -258,34 +219,46 @@ void Interpreter::loadFile(QString filePath) {
         if (!commentText.startsWith('@')) {
             M_Command cmd;
             cmd.type = MP::normalComment;
-            cmd.arg = line.rawLine;   // 保留原始行，便于后续查看
+            cmd.arg = line.rawLine;
             mCommandCache[i] = cmd;
 
-            // 语法树添加 NaturalText（即使不在长指令内，也体现注释）
             auto txtNode = new TreeNode(TreeNode::NaturalText);
             txtNode->text = line.rawLine;
             setNodePos(txtNode, i, 0, line.rawLine.length());
-            scopeStack.top()->children.append(txtNode);
-            txtNode->parent = scopeStack.top();
+            mRootNode->children.append(txtNode);
+            txtNode->parent = mRootNode.get();
             continue;
         }
 
-        // 2. 检查 @} 结束标记
+        // 2. 检查 @} ：现在作为普通 end 指令
         if (commentText.mid(1).trimmed() == "}") {
             M_Command cmd;
             cmd.type = MP::end;
             mCommandCache[i] = cmd;
-            // 不在语法树中为该行生成节点（它是控制标记）
 
-            if (scopeStack.size() > 1 && scopeStack.top()->type == TreeNode::LongCommandScope) {
-                TreeNode* closedScope = scopeStack.pop();
-                closedScope->lineEnd = i;
-                if (!longBlockRows.isEmpty()) longBlockRows.pop();
-            }
+            // 创建 end 指令的语法树节点（Command 节点）
+            auto cmdNode = new TreeNode(TreeNode::Command);
+            // 定位：从行首到注释结束
+            int firstNonSpace = 0;
+            while (firstNonSpace < line.rawLine.length() &&
+                line.rawLine[firstNonSpace].isSpace())
+                ++firstNonSpace;
+            setNodePos(cmdNode, i, firstNonSpace, line.commentText.length());
+
+            // 操作符节点 "@}" 或 "}" ？这里用 "}" 表示操作符文本
+            auto opNode = new TreeNode(TreeNode::CommandOperator);
+            opNode->opType = MP::end;
+            opNode->text = "}";
+            setNodePos(opNode, i, firstNonSpace + 1, 1); // '@' 后的 '}'
+            cmdNode->children.append(opNode);
+            opNode->parent = cmdNode;
+
+            mRootNode->children.append(cmdNode);
+            cmdNode->parent = mRootNode.get();
             continue;
         }
 
-        // 3. 尝试作为指令解析（包括 @msg, @fill, @ref 等）
+        // 3. 尝试作为指令解析（@msg, @fill, @ref 等）
         ParseState state;
         state.row = i;
         state.originalLine = line.rawLine;
@@ -301,21 +274,8 @@ void Interpreter::loadFile(QString filePath) {
         if (parseCommandLine(state, cmd, cmdNode)) {
             // 成功解析为指令
             mCommandCache[i] = cmd;
-            mParentRow[i] = parent;  // 更新父行（前面已设，但可保留）
-
-            scopeStack.top()->children.append(cmdNode);
-            cmdNode->parent = scopeStack.top();
-
-            // 长指令：创建作用域并压栈
-            if (cmd.isLongOperator) {
-                auto scopeNode = new TreeNode(TreeNode::LongCommandScope);
-                scopeNode->lineBegin = i;
-                scopeNode->lineEnd = -1;
-                cmdNode->children.append(scopeNode);
-                scopeNode->parent = cmdNode;
-                scopeStack.push(scopeNode);
-                longBlockRows.push(i);
-            }
+            mRootNode->children.append(cmdNode);
+            cmdNode->parent = mRootNode.get();
         }
         else {
             // 解析失败（格式错误），降级为普通注释
@@ -327,26 +287,19 @@ void Interpreter::loadFile(QString filePath) {
             auto txtNode = new TreeNode(TreeNode::NaturalText);
             txtNode->text = line.rawLine;
             setNodePos(txtNode, i, 0, line.rawLine.length());
-            scopeStack.top()->children.append(txtNode);
-            txtNode->parent = scopeStack.top();
+            mRootNode->children.append(txtNode);
+            txtNode->parent = mRootNode.get();
         }
-    }
-
-    // 处理文件结束时仍未闭合的长作用域
-    while (scopeStack.size() > 1) {
-        TreeNode* node = scopeStack.pop();
-        if (node->type == TreeNode::LongCommandScope && node->lineEnd == -1)
-            node->lineEnd = mLines.size() - 1;
     }
 }
 
-// ---------- 从语法树构建缓存（备用或刷新用） ----------
+// ---------- 从语法树构建缓存（备用）----------
 void Interpreter::buildCacheFromTree() {
     if (!mRootNode) return;
     mCommandCache.clear();
     mParentRow.clear();
     mParentRow.resize(mLines.size());
-    buildCacheRecursive(mRootNode, mCommandCache, mParentRow, -1);
+    buildCacheRecursive(mRootNode.get(), mCommandCache, mParentRow, -1);
 }
 
 void Interpreter::buildCacheRecursive(TreeNode* node, QHash<int, M_Command>& cache,
@@ -354,22 +307,18 @@ void Interpreter::buildCacheRecursive(TreeNode* node, QHash<int, M_Command>& cac
     if (!node) return;
     for (TreeNode* child : node->children) {
         if (child->type == TreeNode::Command) {
-            // 从子节点重建 M_Command（假设 Command 节点的第一个子节点是 CommandOperator）
             M_Command cmd;
             if (child->children.size() > 0 && child->children[0]->type == TreeNode::CommandOperator) {
                 cmd.type = child->children[0]->opType;
-                // 收集其他子节点：ArgList / SingleArg / LongCommandScope
                 for (int i = 1; i < child->children.size(); ++i) {
                     TreeNode* sub = child->children[i];
                     if (sub->type == TreeNode::SingleArg) {
                         cmd.arg = sub->text;
                     }
                     else if (sub->type == TreeNode::ArgList) {
-                        // 从 ArgList 的子节点重建 args
                         for (TreeNode* item : sub->children) {
                             M_CommandArg arg;
                             if (item->type == TreeNode::ArgItem) {
-                                // ArgItem 下可能有 ArgKey 和 ArgVal
                                 TreeNode* keyNode = nullptr;
                                 TreeNode* valNode = nullptr;
                                 for (TreeNode* grand : item->children) {
@@ -390,37 +339,54 @@ void Interpreter::buildCacheRecursive(TreeNode* node, QHash<int, M_Command>& cac
                             cmd.args.append(arg);
                         }
                     }
-                    else if (sub->type == TreeNode::LongCommandScope) {
-                        // 长指令，标记 isLongOperator
-                        cmd.isLongOperator = true;
-                    }
+                    // 忽略已经不存在的 LongCommandScope 节点
                 }
             }
             int row = child->lineBegin;
             if (row >= 0 && row < mLines.size()) {
                 cache[row] = cmd;
-                parentRow[row] = parentRowIdx;
+                parentRow[row] = parentRowIdx; // 始终 -1
             }
-
-            // 递归处理长指令内的子指令
-            if (child->children.size() > 0) {
-                // 找到 LongCommandScope 节点
-                for (TreeNode* sub : child->children) {
-                    if (sub->type == TreeNode::LongCommandScope) {
-                        // 该长作用域内的指令的父行是当前指令的行
-                        buildCacheRecursive(sub, cache, parentRow, row);
-                    }
-                }
-            }
-        }
-        else if (child->type == TreeNode::LongCommandScope) {
-            // 直接作用域（不应出现在顶层？）
-            buildCacheRecursive(child, cache, parentRow, parentRowIdx);
+            // 不再需要递归作用域，所有指令已平级
         }
         else {
-            // Root, NaturalText 等继续递归
             buildCacheRecursive(child, cache, parentRow, parentRowIdx);
         }
+    }
+}
+
+void Interpreter::computeHierarchyLevels() {
+    mHierarchyLevels.resize(mLines.size());
+    int currentLevel = 0;
+
+    for (int i = 0; i < mLines.size(); ++i) {
+        M_Command cmd;
+        bool hasCmd = mCommandCache.contains(i);
+        if (hasCmd) cmd = mCommandCache[i];
+
+        if (hasCmd && cmd.type == MP::end) {
+            // @} 行本身属于外一层级，先降级再记录
+            if (currentLevel > 0) {
+                --currentLevel;
+            }
+            else {
+                riseWarning(QString("Unmatched @} at line %1").arg(i));
+            }
+            mHierarchyLevels[i] = currentLevel;
+        }
+        else {
+            // 普通行：记录当前层级
+            mHierarchyLevels[i] = currentLevel;
+            // longOp 开启下一级
+            if (hasCmd && cmd.isLongOperator) {
+                ++currentLevel;
+            }
+        }
+    }
+
+    // 文件结束时存在未闭合的 longOp
+    if (currentLevel > 0) {
+        riseWarning(QString("%1 unclosed long command(s) at end of file").arg(currentLevel));
     }
 }
 
@@ -459,15 +425,11 @@ bool Interpreter::isCommentBlockAfter(int b) const {
 
 int Interpreter::getParentRow(int row) const {
     if (row < 0 || row >= mParentRow.size()) return -1;
-    return mParentRow[row];
+    return mParentRow[row];   // 始终返回 -1
 }
 
 QVector<int> Interpreter::getChildRows(int parentRow) const {
     QVector<int> children;
-    if (parentRow < 0 || parentRow >= mParentRow.size()) return children;
-    for (int i = 0; i < mParentRow.size(); ++i) {
-        if (mParentRow[i] == parentRow)
-            children.append(i);
-    }
+    // 平级指令无父子行关系，始终返回空
     return children;
 }

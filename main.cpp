@@ -3,6 +3,7 @@
 //#include "code/CodeAnalyzer.h"
 //#include"gui/NameMapView.h"
 #include"AIWork/AIWorkFlow.h"
+#include"AIWork/Gui/DSLEditor.h"
 #include<qdebug.h>
 #include<iostream>
 #include"AIWork/BaseTool.h"
@@ -15,6 +16,8 @@ int main(int argc, char* argv[])
     //todo 添加一个new scope 操作
 
     QApplication app(argc, argv);
+    DSLEditor editor;
+    editor.show();
     //awf::ExceptionCollector ec;
     //awf::ClangTool ct(ec);
     //awf::AIClient aic(ec);
@@ -35,21 +38,21 @@ int main(int argc, char* argv[])
     //QObject::connect(reply.get(), &awf::AITask::deltaReceived, [](const QString& data) {
     //    qDebug().noquote()<< data.toStdString();
     //});
-    awf::ExceptionCollector ec;
-    awf::Interpreter ip(ec);
-    ip.loadFile("E:\\cpp\\qt\\CPHe\\AIWork\\des.cpp");
-    for (size_t i = 0; i < ip.rowCount(); i++)
-    {
-        qDebug().noquote() << ip.getCommandOf(i).toString();
-    }
+    //awf::ExceptionCollector ec;
+    //awf::Interpreter ip(ec);
+    //ip.loadFile("E:\\cpp\\qt\\CPHe\\AIWork\\des.cpp");
+    //for (size_t i = 0; i < ip.rowCount(); i++)
+    //{
+    //    qDebug().noquote() << ip.getCommandOf(i).toString();
+    //}
 
 
 
-    awf::AIWorkFlow af("E:\\cpp\\qt\\CPHe\\AIWork");
-    af.setWrite(false);
-    af.launch("des.cpp","");
-    
-    af.ec.printAll();
+    //awf::AIWorkFlow af("E:\\cpp\\qt\\CPHe\\AIWork");
+    //af.setWrite(false);
+    //af.launch("des.cpp","");
+    //
+    //af.ec.printAll();
     //awf::Interpreter ip(ec);
     //ip.loadFile("E:\\cpp\\qt\\CPHe\\demo.cpp");
     //for (size_t i = 0; i < ip.rowCount(); i++)
