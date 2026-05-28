@@ -60,5 +60,24 @@ namespace awf {
 				qDebug().noquote() << "No errors, warnings, or messages to display.";
 			}
 		}
+		QString toString() const {
+			QStringList lines;
+
+			for (const QString& err : errs) {
+				lines << "[ERROR] " + err;
+			}
+			for (const QString& wrn : wrns) {
+				lines << "[WARNING] " + wrn;
+			}
+			for (const QString& msg : msgs) {
+				lines << "[INFO] " + msg;
+			}
+
+			if (lines.isEmpty()) {
+				return "No errors, warnings, or messages to display.";
+			}
+
+			return lines.join("\n");
+		}
 	};
 }

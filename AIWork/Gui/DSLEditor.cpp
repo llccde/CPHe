@@ -15,56 +15,75 @@ using namespace awf;
 DSLEditor::DSLEditor(QWidget* parent)
     : QWidget(parent)
     , ui(new Ui::DSLEditorClass)
+    , sug(QString("E:\\cpp\\qt\\CPHe\\AIWork"))
 {
     ui->setupUi(this);
 
-    // 创建补全弹出框（无焦点、无边框）
-    m_completionPopup = new QListWidget(nullptr);
-    // 改为 ToolTip，不抢键盘焦点
-    m_completionPopup->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint);
-    m_completionPopup->setFocusPolicy(Qt::NoFocus);
+    // ---------- 临时文件初始化（不变） ----------
+    m_tempFile.setFileTemplate(QDir::tempPath() + "/dsleditor_XXXXXX.txt");
+    m_tempFile.setAutoRemove(false);
+    if (m_tempFile.open()) {
+        m_tempFile.close();
+    }
+
+    // ---------- 补全弹出框（改为普通子 Widget） ----------
+    m_completionPopup = new QListWidget(this);
+    // 设置为普通 Widget，不再使用 Qt::ToolTip
+    m_completionPopup->setWindowFlags(Qt::Widget);          // 默认就是 Widget，可省略
+    m_completionPopup->setFocusPolicy(Qt::NoFocus);         // 不抢键盘焦点
     m_completionPopup->setMouseTracking(true);
     m_completionPopup->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_completionPopup->setSelectionMode(QAbstractItemView::SingleSelection);
-    // 可选，避免弹出时激活窗口
-    m_completionPopup->setAttribute(Qt::WA_ShowWithoutActivating, true);
+    // 保证它在父控件内部绘制时位于最上层（配合 show 时 raise()）
+    m_completionPopup->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+    // 初始隐藏
+    m_completionPopup->hide();
 
     // 安装事件过滤器，拦截编辑器按键
     ui->textEdit->installEventFilter(this);
 
     // 文本改变时直接进行统一的解析、高亮与补全
-    connect(ui->textEdit, &QTextEdit::textChanged, this, &DSLEditor::processTextUpdate);
+    connect(ui->textEdit, &QTextEdit::textChanged,
+        this, &DSLEditor::processTextUpdate);
 }
 
 DSLEditor::~DSLEditor()
 {
+    if (m_tempFile.exists())
+        m_tempFile.remove();
     delete ui;
 }
 
 void DSLEditor::processTextUpdate()
+
 {
     // 1. 检查文本是否真正变化（避免重复解析）
     QString currentText = ui->textEdit->toPlainText();
     if (currentText == m_lastProcessedText)
         return;
     m_lastProcessedText = currentText;
+    if (!modifyed) {
+        modifyed = true;
+        emit beModifyed(this);
+    }
+    
 
-    // 2. 将内容写入临时文件
-    QTemporaryFile tempFile(QDir::tempPath() + "/dsleditor_XXXXXX.txt");
-    tempFile.setAutoRemove(true);
-    if (!tempFile.open())
-        return;
+    QFile writer(m_tempFile.fileName());
+    if (!writer.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return;                             // 写入失败则放弃本次解析
 
-    QTextStream out(&tempFile);
+    QTextStream out(&writer);
     out << currentText;
-    tempFile.close();
+    writer.close(); 
 
-    // 3. 创建解释器并解析（只创建一次）
+    // 4. 加载同一个临时文件进行解析
     ExceptionCollector ec;
     Interpreter interpreter(ec);
-    interpreter.loadFile(tempFile.fileName());
+    interpreter.loadFile(m_tempFile.fileName()); // 传入文件名即可
     awf::TreeNode* root = interpreter.rootNode();
-    if (ec.hasErr()) ec.printAll();   // 仅用于调试，可注释
+
+
+    if (ec.hasErr()) ec.printAll();
 
     // 4. 语法高亮（清除旧格式，应用新格式）
     QTextDocument* doc = ui->textEdit->document();
@@ -182,7 +201,6 @@ QTextCharFormat DSLEditor::formatForType(awf::TreeNode::Type t)
     return fmt;
 }
 
-// ---------- 补全相关（未作实质性修改） ----------
 QStringList DSLEditor::getCompletionSuggestions(awf::TreeNode* node)
 {
     QStringList suggestions;
@@ -190,25 +208,67 @@ QStringList DSLEditor::getCompletionSuggestions(awf::TreeNode* node)
 
     switch (node->type) {
     case awf::TreeNode::Root:
-        suggestions << "@fill" << "@msg" << "@if" << "@for";
+        // 根节点暂不提供补全
         break;
+
+    case awf::TreeNode::Command:
+        // 正在输入指令名，返回所有可用操作符
+        return sug.getOperator("");
+
     case awf::TreeNode::CommandOperator:
-        suggestions << "@fill" << "@msg" << "@if" << "@for";
-        break;
+        // 正在输入操作符，继续补全操作符本身
+        return sug.getOperator(node->text.trimmed());
+
     case awf::TreeNode::ArgList:
+    {
+        // 获取所属 Command，并取出其中的操作符节点
+        TreeNode* cmd = node->getParentOfType(TreeNode::Command);
+        if (cmd->isValid) {
+            TreeNode* op = cmd->getChildOfType(TreeNode::CommandOperator);
+            if (op->isValid) {
+                return sug.getArgs(op->text.trimmed(), "");
+            }
+        }
+        break;
+    }
+
     case awf::TreeNode::ArgKey:
-        suggestions << "color=" << "size=" << "text=";
+    {
+        // 当前正在输入参数名，需要操作符信息和已输入的部分键名
+        TreeNode* cmd = node->getParentOfType(TreeNode::Command);
+        if (cmd->isValid) {
+            TreeNode* op = cmd->getChildOfType(TreeNode::CommandOperator);
+            if (op->isValid) {
+                return sug.getArgs(op->text.trimmed(), node->text.trimmed());
+            }
+        }
         break;
+    }
+
     case awf::TreeNode::ArgVal:
-        suggestions << "red" << "blue" << "12" << "\"hello\"";
+    {
+        TreeNode* cmd = node->getParentOfType(TreeNode::Command);
+        if (cmd->isValid) {
+            TreeNode* op = cmd->getChildOfType(TreeNode::CommandOperator);
+            TreeNode* argItem = node->getParentOfType(TreeNode::ArgItem);
+            if (argItem->isValid) {
+                TreeNode* keyNode = argItem->getChildOfType(TreeNode::ArgKey);
+                if (keyNode->isValid && op->isValid) {
+                    return sug.getArgValue(op->text, keyNode->text.trimmed(), node->text.trimmed());
+                }
+            }
+        }
         break;
+    }
+
     case awf::TreeNode::SingleArg:
-    case awf::TreeNode::NaturalText:
         suggestions << "example" << "description";
         break;
+
     case awf::TreeNode::Error:
         suggestions << "@fill" << "@msg";
         break;
+
     default:
         break;
     }
@@ -217,8 +277,10 @@ QStringList DSLEditor::getCompletionSuggestions(awf::TreeNode* node)
 
 void DSLEditor::showCompletionPopup(const QStringList& suggestions)
 {
-    if (suggestions.isEmpty()) return;
+    if (suggestions.isEmpty())
+        return;
 
+    // 避免重复刷新相同内容
     QStringList existingItems;
     for (int i = 0; i < m_completionPopup->count(); ++i)
         existingItems << m_completionPopup->item(i)->text();
@@ -229,16 +291,44 @@ void DSLEditor::showCompletionPopup(const QStringList& suggestions)
     m_completionPopup->addItems(suggestions);
     m_completionPopup->setCurrentRow(0);
 
+    // 计算位置与大小（相对 DSLEditor 的本地坐标）
     QRect cursorRect = ui->textEdit->cursorRect();
-    QPoint globalPos = ui->textEdit->mapToGlobal(cursorRect.bottomRight());
-    if (QScreen* screen = QGuiApplication::primaryScreen()) {
-        QRect screenGeom = screen->availableGeometry();
-        int popupHeight = m_completionPopup->sizeHint().height();
-        if (globalPos.y() + popupHeight > screenGeom.bottom())
-            globalPos.setY(globalPos.y() - cursorRect.height() - popupHeight);
+    // 光标矩形右下角在 QTextEdit 内部坐标
+    QPoint cursorBottomRight = cursorRect.bottomRight();
+    // 转换到 DSLEditor (this) 的坐标系
+    QPoint localPos = ui->textEdit->mapTo(this, cursorBottomRight);
+
+    // 设定补全框的推荐宽度（可根据需要调整）
+    m_completionPopup->setFixedWidth(220);
+    // 根据内容调整高度（但不超过可见区域）
+    m_completionPopup->adjustSize();
+
+    int popupW = m_completionPopup->width();
+    int popupH = m_completionPopup->sizeHint().height();
+
+    // 边界检查：确保补全框不超出 DSLEditor 的可视范围
+    QRect editorRect = rect();   // 本地坐标
+
+    int x = localPos.x();
+    int y = localPos.y();
+
+    // 水平边界：若右侧超出则向左偏移
+    if (x + popupW > editorRect.right())
+        x = editorRect.right() - popupW;
+    if (x < editorRect.left())
+        x = editorRect.left();
+
+    // 垂直边界：默认在光标下方显示，若下方空间不够则显示在光标上方
+    if (y + popupH > editorRect.bottom()) {
+        // 改为光标上方
+        y = localPos.y() - cursorRect.height() - popupH;
+        if (y < editorRect.top())
+            y = editorRect.top();
     }
-    m_completionPopup->move(globalPos);
+
+    m_completionPopup->move(x, y);
     m_completionPopup->show();
+    m_completionPopup->raise();   // 确保在所有兄弟控件之上
 }
 
 void DSLEditor::hideCompletionPopup()
@@ -314,4 +404,28 @@ bool DSLEditor::eventFilter(QObject* obj, QEvent* event)
         }
     }
     return QWidget::eventFilter(obj, event);
+}
+bool DSLEditor::loadFromFile(const QString& filePath)
+{
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return false;
+    QTextStream in(&file);
+    QString content = in.readAll();
+    file.close();
+    // 设置文本会触发 textChanged 信号，进而自动进行解析、高亮与补全
+    ui->textEdit->setPlainText(content);
+    loadPath = filePath;
+    return true;
+}
+bool DSLEditor::saveIntoFile(const QString& filePath)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return false;
+    QTextStream out(&file);
+    out << ui->textEdit->toPlainText();
+    file.close();
+    return true;
 }

@@ -3,7 +3,9 @@
 #include <QString>
 #include <QVector>
 #include "M_Command.h"
+
 namespace awf {
+
     class TreeNode {
     public:
         enum Type {
@@ -17,8 +19,10 @@ namespace awf {
             ArgKey,
             ArgVal,
             NaturalText,
-            Error
+            Error,
+            Invalid   // 新增：表示无效节点
         };
+
         Type type;
         int lineBegin, lineEnd;
         int colBegin, colEnd;
@@ -26,17 +30,58 @@ namespace awf {
         QVector<TreeNode*> children;
         M_OperatorType opType = M_OperatorType::notCommand;
         QString text;
+        bool isValid = true;   // 新增：标识节点是否有效
+
         TreeNode(Type t) : type(t) {}
+
         ~TreeNode() { qDeleteAll(children); }
+
+        // 获取全局无效节点（单例）
+        static TreeNode* invalidNode() {
+            static TreeNode node(Invalid);
+            node.isValid = false;
+            return &node;
+        }
+
+        // 向上查找第一个指定类型的父节点
+        TreeNode* getParentOfType(Type t) {
+            TreeNode* cur = parent;
+            while (cur) {
+                if (cur->type == t)
+                    return cur;
+                cur = cur->parent;
+            }
+            return invalidNode();   // 未找到返回无效节点
+        }
+
+        // 返回第一个指定类型的直接子节点
+        TreeNode* getChildOfType(Type t) {
+            for (auto* child : children) {
+                if (child->type == t)
+                    return child;
+            }
+            return invalidNode();   // 未找到返回无效节点
+        }
+
+        // 返回所有指定类型的直接子节点
+        QVector<TreeNode*> getChildrenOfType(Type t) {
+            QVector<TreeNode*> result;
+            for (auto* child : children) {
+                if (child->type == t)
+                    result.append(child);
+            }
+            if (result.isEmpty()) {
+                result.append(invalidNode());  // 约定：找不到也返回一个包含无效节点的向量
+            }
+            return result;
+        }
+
         /**
          * 获取包含指定行列位置的最深节点
-         * @param line 行号
-         * @param col  列号
-         * @return 最深的包含该位置的节点；若当前节点不包含该位置则返回 nullptr
          */
         TreeNode* deepestNodeAt(int line, int col) {
-            // 检查当前节点是否包含 (line, col)
-            if (!type == Root) {
+            // 修正原逻辑错误：应为 type != Root
+            if (type != Root) {
                 if (line < lineBegin || line > lineEnd)
                     return nullptr;
                 if (line == lineBegin && col < colBegin)
@@ -45,14 +90,13 @@ namespace awf {
                     return nullptr;
             }
 
-            // 在子节点中递归查找更深的节点
-            for (auto child : children) {
+            for (auto* child : children) {
                 TreeNode* found = child->deepestNodeAt(line, col);
                 if (found)
                     return found;
             }
-            // 没有子节点包含该位置，当前节点即为最深节点
             return this;
         }
     };
+
 } // namespace awf

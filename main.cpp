@@ -1,67 +1,111 @@
 ﻿//#include "gui/CPHeMain.h"
 #include <QtWidgets/QApplication>
-//#include "code/CodeAnalyzer.h"
-//#include"gui/NameMapView.h"
+
 #include"AIWork/AIWorkFlow.h"
 #include"AIWork/Gui/DSLEditor.h"
+#include"AIWork/Gui/TheMainWindow.h"
+#include"AIWork/Gui/EditorsTabView.h"
+#include"AIWork/Gui/FileView.h"
 #include<qdebug.h>
 #include<iostream>
 #include"AIWork/BaseTool.h"
 #include <QFile>
 #include <QTextStream>
 #include <QString>
-
+#include<qfiledialog.h>
+#include"qobject.h"
+#include"qfileinfo.h"
+#include"qset.h"
+#include<qmessagebox.h>
+#include<qdir.h>
 int main(int argc, char* argv[])
 {
     //todo 添加一个new scope 操作
 
+
+
     QApplication app(argc, argv);
-    DSLEditor editor;
-    editor.show();
-    //awf::ExceptionCollector ec;
-    //awf::ClangTool ct(ec);
-    //awf::AIClient aic(ec);
-    //aic.setBase("https://api.deepseek.com", getFirstLine("E:\\cpp\\qt\\CPHe\\key.txt"), "deepseek-v4-flash", awf::AIClient::deepSeek);
-    //aic.set_deepSeek_thinking(false);
-    //auto raw = aic.getGen({ {awf::user,"写一个c++函数,接收vector<int>值类型,返回排序后的vector<int>副本,函数名为sortAndRet,只写一个函数,不要写其他任何东西"} });
-    //auto fragment = awf::extractLineBase("```cpp", "```",raw.split("\n"));
-   
-    //qDebug().noquote() << raw;
-    //qDebug()<<"提取";
+    QSet<DSLEditor*> loadedFiles;
+    QString WorkingFolder;
+    EditorsTabView* tabView = new EditorsTabView();
+    FileView* fileView = new FileView();
+    TheMainWindow* mainWindow = new TheMainWindow();
 
-    //for (auto v:fragment)
-    //{
-    //    qDebug().noquote() << ct.getSymbolDef(v, "sortAndRet").join("\n");
-    //}
-    
-    //qDebug().noquote() << reply;
-    //QObject::connect(reply.get(), &awf::AITask::deltaReceived, [](const QString& data) {
-    //    qDebug().noquote()<< data.toStdString();
-    //});
-    //awf::ExceptionCollector ec;
-    //awf::Interpreter ip(ec);
-    //ip.loadFile("E:\\cpp\\qt\\CPHe\\AIWork\\des.cpp");
-    //for (size_t i = 0; i < ip.rowCount(); i++)
-    //{
-    //    qDebug().noquote() << ip.getCommandOf(i).toString();
-    //}
+    auto doLoadFile = [&](const QString& path) {
+        // 查找是否已有对应编辑器
+        for (auto editor : loadedFiles) {
+            if (QFileInfo(editor->getLoadPath()) == QFileInfo(path)) {
+                tabView->setCurrent(editor);
+                return;
+            }
+        }
+        // 未打开，创建新编辑器
+        auto editor = new DSLEditor();
+        editor->loadFromFile(path);
+        tabView->addTab(std::unique_ptr<QWidget>(editor), QDir(WorkingFolder).relativeFilePath(path));
+        loadedFiles.insert(editor);
+        tabView->setCurrent(editor);
+        QObject::connect(editor, &QWidget::destroyed, [&loadedFiles](QObject* obj) {
+            loadedFiles.remove((DSLEditor*)(obj));
+            return;
+        });
+    };
 
 
 
-    //awf::AIWorkFlow af("E:\\cpp\\qt\\CPHe\\AIWork");
-    //af.setWrite(false);
-    //af.launch("des.cpp","");
-    //
-    //af.ec.printAll();
-    //awf::Interpreter ip(ec);
-    //ip.loadFile("E:\\cpp\\qt\\CPHe\\demo.cpp");
-    //for (size_t i = 0; i < ip.rowCount(); i++)
-    //{
-    //    auto cmd = ip.getCommandOf(i);
-    //    qDebug()<<cmd.toString();
-    //}
-    //ec.printAll();
-    //
+    mainWindow->addDockWidget(Qt::LeftDockWidgetArea, std::unique_ptr<QWidget>(fileView));
+    //mainWindow->addDockWidget(Qt::RightDockWidgetArea, std::unique_ptr<QWidget>(tabView));
+    mainWindow->setCentralWidget(tabView);
+    mainWindow->addMenuAction({ "File","openFolder" }, [&]() {
+        QString dir = QFileDialog::getExistingDirectory(
+            mainWindow,                 
+            "请选择一个文件夹",
+            "",                 
+            QFileDialog::ShowDirsOnly 
+        );
+        if (!dir.isEmpty()) {
+            WorkingFolder = dir;
+            fileView->setRootFolder(dir);
+        }
+        
+    });
+    mainWindow->addMenuAction({ "File","save" }, [&]() {
+        if (loadedFiles.contains(dynamic_cast<DSLEditor*>(tabView->getCurrent()))) {
+            if (dynamic_cast<DSLEditor*>(tabView->getCurrent())->saveBack()) {
+            
+            }
+            else {
+                QMessageBox::warning(
+                    nullptr, "操作失败","操作失败"
+                );
+            }
+        }
+    });
+    mainWindow->addMenuAction({ "Code","run" }, [&]() {
+        if (loadedFiles.isEmpty()) {
+            QMessageBox::warning(nullptr, "", "没有打开任何文件");
 
+        }
+        if (loadedFiles.contains(dynamic_cast<DSLEditor*>(tabView->getCurrent()))) {
+            auto path = dynamic_cast<DSLEditor*>(tabView->getCurrent())->getLoadPath();
+
+            awf::AIWorkFlow workFlow(QFileInfo(path).absolutePath());
+            QString name = "result_" + QFileInfo(path).fileName();
+            workFlow.launch(path, "result_"+ QFileInfo(path).fileName());
+            if (workFlow.ec.hasErr()) {
+                workFlow.ec.printAll();
+                QMessageBox::warning(nullptr, "出现错误", workFlow.ec.toString());
+            }
+            else
+            {
+                doLoadFile(workFlow.getAbsPath(name));
+            }
+
+                
+        }
+        
+    });
+    QObject::connect(fileView, &FileView::fileDoubleClicked, doLoadFile);
+    mainWindow->show();
     return app.exec();
 }

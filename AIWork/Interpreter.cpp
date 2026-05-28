@@ -102,6 +102,9 @@ QString Interpreter::parseSingleArg(const QString& rest, int row, int colStart, 
 
 bool Interpreter::parseCommandLine(const ParseState& state, M_Command& outCmd, TreeNode*& outNode) {
     outCmd = M_Command();
+    auto cmdNode = new TreeNode(TreeNode::Command);
+    setNodePos(cmdNode, state.row, state.commentStartCol, state.commentText.length());
+    outNode = cmdNode;
     QString text = state.commentText.mid(1).trimmed(); // 去 '@'
     if (text.isEmpty()) return false;
 
@@ -117,9 +120,6 @@ bool Interpreter::parseCommandLine(const ParseState& state, M_Command& outCmd, T
     outCmd.type = opType;
 
     QString rest = text.mid(match.capturedLength()).trimmed();
-
-    auto cmdNode = new TreeNode(TreeNode::Command);
-    setNodePos(cmdNode, state.row, state.commentStartCol, state.commentText.length());
     cmdNode->children.append(opNode);
     opNode->parent = cmdNode;
 
@@ -164,7 +164,7 @@ bool Interpreter::parseCommandLine(const ParseState& state, M_Command& outCmd, T
         descNode->parent = cmdNode;
     }
 
-    outNode = cmdNode;
+    
     return true;
 }
 
@@ -278,17 +278,19 @@ void Interpreter::loadFile(QString filePath) {
             cmdNode->parent = mRootNode.get();
         }
         else {
-            // 解析失败（格式错误），降级为普通注释
-            M_Command fallback;
-            fallback.type = MP::normalComment;
-            fallback.arg = line.rawLine;
-            mCommandCache[i] = fallback;
+            mRootNode->children.append(cmdNode);
+            cmdNode->parent = mRootNode.get();
+            //// 解析失败（格式错误），降级为普通注释
+            //M_Command fallback;
+            //fallback.type = MP::normalComment;
+            //fallback.arg = line.rawLine;
+            //mCommandCache[i] = fallback;
 
-            auto txtNode = new TreeNode(TreeNode::NaturalText);
-            txtNode->text = line.rawLine;
-            setNodePos(txtNode, i, 0, line.rawLine.length());
-            mRootNode->children.append(txtNode);
-            txtNode->parent = mRootNode.get();
+            //auto txtNode = new TreeNode(TreeNode::NaturalText);
+            //txtNode->text = line.rawLine;
+            //setNodePos(txtNode, i, 0, line.rawLine.length());
+            //mRootNode->children.append(txtNode);
+            //txtNode->parent = mRootNode.get();
         }
     }
 }
@@ -421,6 +423,19 @@ bool Interpreter::isCommentBlockAfter(int b) const {
     int idx = b + 1;
     if (idx < 0 || idx >= mInBlockAfterLine.size()) return false;
     return mInBlockAfterLine[idx];
+}
+int Interpreter::getCommentStartOfCommentRow(int row) const {
+    if (!isCommentBlockAfter(row)) {
+        return -1;
+    }
+
+    for (int i = row; i >= 0; --i) {
+        if (!mInBlockAfterLine[i] && mInBlockAfterLine[i + 1]) {
+            return i;
+        }
+    }
+
+    return -1;
 }
 
 int Interpreter::getParentRow(int row) const {

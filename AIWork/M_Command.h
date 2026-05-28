@@ -16,7 +16,7 @@ namespace awf {
 	public:
 		enum M_OperatorTypeInner {
 			end,normalComment,
-			msg,//is comment,but not begin with @,or begin with @msg
+			msg,
 			notCommand,//原始代码文本,非注释,非指令标记
 
 			fill, 
@@ -27,28 +27,30 @@ namespace awf {
 
 
 			ref,
-			record,recordEnd
-
-
+			record,recordEnd,
 		};
 		Q_ENUM(M_OperatorTypeInner);
 	};
-	class RefArgsClass {
+	class ArgsClass {
 		Q_GADGET            // 启用元对象功能，但不继承 QObject
 	public:
 		enum Arg {
+			single,
 			notFound,
 			file,
 			callLLM,
 			cache,
 			msg,
 			symbol,
-			
+			id,
+			symbolName, 
+			modelName, 
+
 		};
 		Q_ENUM(Arg)         // 向元对象系统注册枚举
 
 			// 字符串 → 枚举
-			static inline Arg fromString(const QString& str) {
+		static inline Arg fromString(const QString& str) {
 			const QMetaEnum metaEnum = QMetaEnum::fromType<Arg>();
 			bool ok = false;
 			int value = metaEnum.keyToValue(str.toUtf8().constData(), &ok);
@@ -62,33 +64,8 @@ namespace awf {
 			return key ? QString::fromUtf8(key) : QString();
 		}
 	};
-	class RecordArgsClass {
-		Q_GADGET            // 启用元对象功能，但不继承 QObject
-	public:
-		enum Arg {
-			notFound,
-			symbol,
-			id
-		};
-		Q_ENUM(Arg)         // 向元对象系统注册枚举
+	using Args = ArgsClass::Arg;
 
-			// 字符串 → 枚举
-			static inline Arg fromString(const QString& str) {
-			const QMetaEnum metaEnum = QMetaEnum::fromType<Arg>();
-			bool ok = false;
-			int value = metaEnum.keyToValue(str.toUtf8().constData(), &ok);
-			return ok ? static_cast<Arg>(value) : notFound;  // 缺省返回 notFound
-		}
-
-		// 枚举 → 字符串
-		static inline QString toString(Arg arg) {
-			const QMetaEnum metaEnum = QMetaEnum::fromType<Arg>();
-			const char* key = metaEnum.valueToKey(static_cast<int>(arg));
-			return key ? QString::fromUtf8(key) : QString();
-		}
-	};
-	using RecordArgs = RecordArgsClass::Arg;
-	using RefArgs = RefArgsClass::Arg;
 	using M_OperatorType = M_OperatorTypeClass::M_OperatorTypeInner;
 	using MP = M_OperatorTypeClass::M_OperatorTypeInner;
 	QString operatorTypeToString(M_OperatorType type);

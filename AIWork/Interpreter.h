@@ -29,6 +29,7 @@ namespace awf {
         int rowCount();
 
         bool isCommentBlockAfter(int b) const;
+        int getCommentStartOfCommentRow(int row) const;
         int getParentRow(int row) const;
         QVector<int> getChildRows(int parentRow) const;
         int getHierarchyLevel(int row) const {

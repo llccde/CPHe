@@ -83,6 +83,7 @@ namespace awf {
         if (!lookingBegin) {
             qWarning() << "not closed data when extract";
         }
+
         return result;
     }
     inline QVector<int> extractDecimalNumbers(const QString& text)

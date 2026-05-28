@@ -66,13 +66,17 @@ void awf::AIWorkFlow::writeFile(const QString& data, int index) {
     auto clean = tool.clearSingleLineBreak(data);
     if (index != -1 && index < fileProcesser.rowCount()) {
         auto data_f = tool.SameTab(clean, fileProcesser.getSource(index));
-        fileManeger.insertAfterLineOfOrigin(index,data_f + "\n");
+        fileManeger.insertAfterLineOfOrigin(index,data_f);
         return;
     }
-    fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), clean + "\n");
+    fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), clean);
 }
 
 void awf::AIWorkFlow::writeComment(const QString& data) {
+    if (data.count("\n")) {
+        QRegularExpression re(R"(\r\n|\n|\r)");
+        writeComment(data.split(re));
+    }
     if (!fileProcesser.isCommentBlockAfter(getCurrentIndex())) {
         writeFile("//" + data, index);
     }
@@ -88,7 +92,7 @@ void awf::AIWorkFlow::writeComment(const QVector<QString> data) {
         if (index != -1 && index < fileProcesser.rowCount()) {
             tool.FormatTab(dataC, fileProcesser.getSource(index));
         }
-        fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), "/*" + dataC.join("\n") + "*/\n");
+        fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), "/*" + dataC.join("\n") + "*/");
     }
     else {
         writeFile(data, index);
@@ -96,7 +100,8 @@ void awf::AIWorkFlow::writeComment(const QVector<QString> data) {
 }
 
 void awf::AIWorkFlow::writeSource(const QString& data) {
-    writeSource({ data });
+    QRegularExpression re(R"(\r\n|\n|\r)");
+    writeSource(data.split(re));
 }
 
 void awf::AIWorkFlow::writeSource(const QVector<QString> data) {
@@ -106,9 +111,11 @@ void awf::AIWorkFlow::writeSource(const QVector<QString> data) {
         dataC.push_back("/*");
         tool.clearLineBreak(dataC);
         if (index != -1 && index < fileProcesser.rowCount()) {
-            tool.FormatTab(dataC, fileProcesser.getSource(index));
+            int start = fileProcesser.getCommentStartOfCommentRow(getCurrentIndex());
+            if (start == -1) start = index;
+            tool.FormatTab(dataC, fileProcesser.getSource(start));
         }
-        fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), dataC.join("\n") + '\n');
+        fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), dataC.join("\n"));
     }
     else {
         writeFile(data, index);
@@ -121,7 +128,7 @@ void awf::AIWorkFlow::writeFile(const QVector<QString>& data, int index) {
     if (index != -1 && index < fileProcesser.rowCount()) {
         tool.FormatTab(dataC, fileProcesser.getSource(index));
     }
-    fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), dataC.join("\n") + "\n");
+    fileManeger.insertAfterLineOfOrigin(getCurrentIndex(), dataC.join("\n"));
 }
 
 void awf::AIWorkFlow::riseWarn(const QString& wrn) {
@@ -305,8 +312,12 @@ void awf::AIWorkFlow::fillCommand() {
     promot.append(userMessage);
     writeComment("@genBegin,"+args.join(","));
     // 注意：原代码中使用了未定义的 'user'，此处保持原样
+    auto data = extractLineBase("```cpp", "```", aic.getGen(promot, genFunc).split("\n"));
+    for (auto&s:data)
+    {
+        writeSource(s);
+    }
     
-    writeSource(extractLineBase("```cpp", "```", aic.getGen(promot, genFunc).split("\n")));
     writeComment("@genEnd,id=" + genID);
 }
 
@@ -321,11 +332,11 @@ QString awf::AIWorkFlow::handleRef()
     }
 
     // 复杂形式：带参数
-    QString file = _this.getArg(RefArgsClass::toString(RefArgs::file));
-    bool callLLM = (_this.contains(RefArgsClass::toString(RefArgs::callLLM)));
-    bool cacheAfterCallLLM = (_this.contains(RefArgsClass::toString(RefArgs::cache)));
-    QString targetSymbol = _this.getArg(RefArgsClass::toString(RefArgs::symbol));
-    QString desMsg = _this.getArg(RefArgsClass::toString(RefArgs::msg));
+    QString file = _this.getArg(ArgsClass::toString(Args::file));
+    bool callLLM = _this.contains(ArgsClass::toString(Args::callLLM))&& _this.getArg(ArgsClass::toString(Args::callLLM))!="false";
+    bool cacheAfterCallLLM = _this.contains(ArgsClass::toString(Args::cache))&& _this.getArg(ArgsClass::toString(Args::cache))!="false";
+    QString targetSymbol = _this.getArg(ArgsClass::toString(Args::symbol));
+    QString desMsg = _this.getArg(ArgsClass::toString(Args::msg));
     if (cacheAfterCallLLM && !callLLM)callLLM = true;
     if (file.isEmpty()) {
         riseError("@ref 缺少 file 参数");
@@ -344,12 +355,12 @@ QString awf::AIWorkFlow::handleRef()
         auto cur = ip.getCommandOf(i);
 
         // 收集所有已有的 id，避免生成冲突
-        if (!cur.getArg(RecordArgsClass::toString(RecordArgs::id)).isEmpty()) {
-            usedID.insert(cur.getArg(RecordArgsClass::toString(RecordArgs::id)));
+        if (!cur.getArg(ArgsClass::toString(Args::id)).isEmpty()) {
+            usedID.insert(cur.getArg(ArgsClass::toString(Args::id)));
         }
 
         if (cur.type == MP::record || cur.type == MP::genBegin) {
-            if (cur.getArg(RecordArgsClass::toString(RecordArgs::symbol)) == targetSymbol) {
+            if (cur.getArg(ArgsClass::toString(Args::symbol)) == targetSymbol) {
                 foundRecord = true;
                 // symbolBegin 未使用，可保留或删除；这里保留原样
                 // int symbolBegin = i;
@@ -360,14 +371,14 @@ QString awf::AIWorkFlow::handleRef()
                 for (; j < ip.rowCount(); j++) {
                     auto innerCur = ip.getCommandOf(j);
 
-                    if (!innerCur.getArg(RecordArgsClass::toString(RecordArgs::id)).isEmpty()) {
-                        usedID.insert(innerCur.getArg(RecordArgsClass::toString(RecordArgs::id)));
+                    if (!innerCur.getArg(ArgsClass::toString(Args::id)).isEmpty()) {
+                        usedID.insert(innerCur.getArg(ArgsClass::toString(Args::id)));
                     }
 
                     // 找到匹配的结束标签
                     if ((innerCur.type == MP::recordEnd || innerCur.type == MP::genEnd) &&
-                        innerCur.getArg(RecordArgsClass::toString(RecordArgs::id)) ==
-                        cur.getArg(RecordArgsClass::toString(RecordArgs::id)))
+                        innerCur.getArg(ArgsClass::toString(Args::id)) ==
+                        cur.getArg(ArgsClass::toString(Args::id)))
                     {
                         foundEnd = true;
                         // symbolEnd 未使用，保留原样
@@ -458,15 +469,15 @@ QString awf::AIWorkFlow::handleRef()
                 lfm.insertBeforeLineOfOrigin(begin,
                     QString("//@%1,%2=%3,%4=%5")
                     .arg(operatorTypeToString(M_OperatorType::record))
-                    .arg(RecordArgsClass::toString(RecordArgs::symbol))
+                    .arg(ArgsClass::toString(Args::symbol))
                     .arg(targetSymbol)
-                    .arg(RecordArgsClass::toString(RecordArgs::id))
+                    .arg(ArgsClass::toString(Args::id))
                     .arg(QString::number(newId))
                 );
                 lfm.insertAfterLineOfOrigin(end,
                     QString("//@%1,%2=%3")
                     .arg(operatorTypeToString(M_OperatorType::end))
-                    .arg(RecordArgsClass::toString(RecordArgs::id))
+                    .arg(ArgsClass::toString(Args::id))
                     .arg(QString::number(newId))
                 );
             }
@@ -537,4 +548,4 @@ void AIWorkFlow::replaceWithFileBufferAndBackup(const QString& filePath, const Q
     }
 
     fileManeger.writeTo(targetPath);
-}
+}   
