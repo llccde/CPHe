@@ -38,6 +38,8 @@ FileView::FileView(QWidget* parent)
     m_fileSystemModel(new QFileSystemModel(this)),
     m_proxyModel(new FileSortProxyModel(this))
 {
+    setObjectName("File View");
+    setWindowTitle("File_View");
     ui.setupUi(this);
 
     // 配置文件系统模型

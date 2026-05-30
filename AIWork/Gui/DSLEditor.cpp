@@ -417,6 +417,7 @@ bool DSLEditor::loadFromFile(const QString& filePath)
     // 设置文本会触发 textChanged 信号，进而自动进行解析、高亮与补全
     ui->textEdit->setPlainText(content);
     loadPath = filePath;
+    modifyed = false;
     return true;
 }
 bool DSLEditor::saveIntoFile(const QString& filePath)

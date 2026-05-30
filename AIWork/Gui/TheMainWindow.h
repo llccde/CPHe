@@ -22,8 +22,10 @@ public:
 
     // 菜单添加接口：菜单路径（每级菜单名） + 触发的回调
     // 例如：{"File", "Recent", "Clear List"} 会在 File > Recent 下添加 "Clear List" 动作
-    void addMenuAction(const QVector<QString>& path, std::function<void()> callback);
+    QAction* addMenuAction(const QVector<QString>& path, std::function<void()> callback);
 
 private:
+    QList<QDockWidget*> m_docks;          // 记录所有添加的 dock
+    QMenu* m_viewMenu = nullptr;          // “View” 菜单（如果没有则创建）
     Ui::TheMainWindowClass* ui;
 };

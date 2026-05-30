@@ -64,3 +64,13 @@ bool awf::M_Command::contains(const QString& key)
     }
     return false;
 }
+// M_Command.cpp
+const QString& M_Command::getArg(ArgsClass::Arg argType)
+{
+    return getArg(ArgsClass::toString(argType));   // 委托给字符串版本
+}
+
+bool M_Command::contains(ArgsClass::Arg argType)
+{
+    return contains(ArgsClass::toString(argType));
+}

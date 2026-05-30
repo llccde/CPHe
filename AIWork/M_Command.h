@@ -24,10 +24,15 @@ namespace awf {
 			nameFunc,
 			moduleName,
 			copyPrompt,
+			print,
 
+			chat,
 
-			ref,
+			ref,refFiles,
 			record,recordEnd,
+
+
+			max //占位符
 		};
 		Q_ENUM(M_OperatorTypeInner);
 	};
@@ -44,7 +49,12 @@ namespace awf {
 			symbol,
 			id,
 			symbolName, 
-			modelName, 
+			modelName,
+
+			//refFiles
+			endWith,//like"txt|cpp|json"
+			subDir,//false or true ,表示是否递归处理所有子目录
+			baseFolder//搜索范围的根目录
 
 		};
 		Q_ENUM(Arg)         // 向元对象系统注册枚举
@@ -87,6 +97,9 @@ namespace awf {
 		QVector<M_CommandArg> args;//@op,arg1=xx,arg2=xx
 		const QString& getArg(const QString& key);//有则返回,无则返回空值;
 		bool contains(const QString& key);
+
+		const QString& getArg(ArgsClass::Arg argType);
+		bool contains(ArgsClass::Arg argType);
 		QString arg;//@op arg
 		//mean @fill{.....@end
 		bool isLongOperator = false;

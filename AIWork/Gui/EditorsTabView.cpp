@@ -48,6 +48,11 @@ void EditorsTabView::setCurrent(QWidget* w)
     ui->tabWidget->setCurrentWidget(w);
 }
 
+void EditorsTabView::setTabTitle(QWidget*w, QString title)
+{
+    ui->tabWidget->setTabText(ui->tabWidget->indexOf(w), title);
+}
+
 void EditorsTabView::onTabCloseRequested(int index)
 {
     QWidget* page = ui->tabWidget->widget(index);

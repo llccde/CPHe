@@ -7,6 +7,7 @@
 #include"BaseTool.h"
 #include"qclipboard.h"
 #include"qapplication.h"
+#include<qdiriterator.h>
 using namespace awf;
 // AIWorkFlow.cpp
 awf::AIWorkFlow::AIWorkFlow(const QString& working)
@@ -175,6 +176,11 @@ void awf::AIWorkFlow::newFileCommand() {
         case MP::debugger:
             debugger();
             break;
+        case MP::print: {
+            auto c = justNextCommand();
+            emit outPut(c.arg);
+        }
+
         default:
             riseWarn("不支持 其他指令标记 在 文档根节点下");
             justNextCommand();
@@ -321,6 +327,62 @@ void awf::AIWorkFlow::fillCommand() {
     writeComment("@genEnd,id=" + genID);
 }
 
+void awf::AIWorkFlow::chatCommand() {
+    next();
+    int row = getCurrentIndex();
+    auto cur = getCurrentCommand();
+
+    QVector<ChatMessage> promot;
+    ChatMessage userMessage = { user, "" };
+    userMessage.message.append(cur.arg);
+    if (cur.isLongOperator) {
+        bool findEnd = false;
+        while (!findEnd) {
+            if (!hasNext()) {
+                riseWarn("文件结尾处未闭合的 长指令标记");
+                break;
+            }
+            switch (peekNext().type) {
+            case MP::ref: {
+                auto data = handleRef();
+                promot.append({ user, data });
+                break;
+            }
+            case MP::msg:
+            case MP::normalComment: {
+                auto text = justNextCommand();
+                userMessage.message.append(text.arg);
+                break;
+            }
+            case MP::end:
+                findEnd = true;
+                justNextCommand();
+                break;
+            case MP::copyPrompt: {
+                justNextCommand();
+                QVector<QString> data;
+                for (auto& i : promot)
+                {
+                    data.append(i.toString());
+                }
+                data.append(userMessage.toString());
+                QApplication::clipboard()->setText(data.join("\n"));
+                break;
+            }
+            case MP::refFiles: {
+                
+            }
+            default:
+                riseWarn("在@chat 长指令标记 区间内,除去@ref,@end,不支持任何其他指令");
+                justNextCommand();
+                break;
+            }
+        }
+    }
+
+    auto data =aic.getGen(promot);
+    emit outPut(data);
+}
 QString awf::AIWorkFlow::handleRef()
 {
     next();  // 移动到当前 @ref 指令
@@ -492,6 +554,74 @@ QString awf::AIWorkFlow::handleRef()
     return result.join("\n");
 }
 
+QVector<FileBuffer> awf::AIWorkFlow::handleRefFile()
+{
+    next();  // 移动到当前 @refFile 指令
+    auto _this = getCurrentCommand();
+
+    // ---------- 解析参数 ----------
+    QString endWith = _this.getArg(Args::endWith);
+    QString subDirStr = _this.getArg(Args::subDir);
+    QString baseFolder = _this.getArg(Args::baseFolder);
+
+    // 是否递归子目录（"true" 或 "1" 视为真）
+    bool recursive = (subDirStr.toLower() == "true" || subDirStr == "1");
+
+    // 确定搜索根目录
+    QString baseDirPath = baseFolder.isEmpty() ? workingFolder
+        : getAbsPath(baseFolder);
+    QDir baseDir(baseDirPath);
+    if (!baseDir.exists()) {
+        riseError(QString("@refFile 指定的 baseFolder 不存在: %1").arg(baseDirPath));
+        return {};
+    }
+
+    // 构建文件名过滤器
+    QStringList nameFilters;
+    if (!endWith.isEmpty()) {
+        const QStringList exts = endWith.split('|', Qt::SkipEmptyParts);
+        for (const QString& ext : exts) {
+            QString trimmed = ext.trimmed();
+            if (!trimmed.isEmpty())
+                nameFilters << QStringLiteral("*.%1").arg(trimmed);
+        }
+    }
+
+    // ---------- 收集文件 ----------
+    QVector<FileBuffer> result;          // 每个元素存放一个文件的完整内容
+
+    if (recursive) {
+        QDirIterator it(baseDirPath, nameFilters, QDir::Files,
+            QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            it.next();
+            QString content = awf::readFileContents(it.filePath());
+            if (!content.isEmpty())   // 避免加入完全为空的文件（可按需求调整）
+                result.append({it.filePath() ,content});
+        }
+    }
+    else {
+        baseDir.setNameFilters(nameFilters);
+        const QStringList files = baseDir.entryList(QDir::Files);
+        for (const QString& fileName : files) {
+            QString fullPath = baseDir.absoluteFilePath(fileName);
+            QString content = awf::readFileContents(fullPath);
+            if (!content.isEmpty())
+                result.append({ fullPath,content });
+        }
+    }
+
+    // 如果最终未读取到任何文件，给出警告但不算致命错误
+    if (result.isEmpty()) {
+        riseWarn(QString("@refFile 未找到匹配的文件 (baseFolder=%1, endWith=%2)")
+            .arg(baseDirPath, endWith));
+    }
+
+    return result;
+}
+
+
+
 void awf::AIWorkFlow::launch(const QString& filePath, const QString& outPath) {
     prepareLaunch(filePath, outPath, -1);
     
@@ -549,3 +679,6 @@ void AIWorkFlow::replaceWithFileBufferAndBackup(const QString& filePath, const Q
 
     fileManeger.writeTo(targetPath);
 }   
+class Command{
+    QHash<M_OperatorType, std::function<void(M_Command&)>> switchCase;
+};

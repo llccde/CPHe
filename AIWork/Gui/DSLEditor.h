@@ -21,8 +21,9 @@ public:
 
 private slots:
     void processTextUpdate();
-    bool modifyed = false;
+    
 private:
+    bool modifyed = false;
     Ui::DSLEditorClass* ui;
     QTemporaryFile m_tempFile;
     awf::Suggestion sug;
@@ -41,6 +42,7 @@ private:
     bool eventFilter(QObject* obj, QEvent* event) override;   
 signals:
     void beModifyed(DSLEditor* _this);
+signals:
     void saved(DSLEditor* _this);
 public:
    

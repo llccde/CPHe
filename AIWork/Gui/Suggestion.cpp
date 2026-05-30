@@ -85,19 +85,19 @@ awf::Suggestion::Suggestion(const QString& working) : workingFolder(working)
 {
     sugtable = {
         { MP::fill, {
-            { Args::single,    completeSingleArg_ },
+            { Args::single,     completeSingleArg_ },
             { Args::symbolName, completeSymbolName_ },
             { Args::modelName,  completeModelName_ },
-            { Args::id,        completeId_ }
+            { Args::id,         completeId_ }
         }},
         { MP::genBegin, {
-            { Args::id,        completeId_ },
+            { Args::id,         completeId_ },
             { Args::symbolName, completeSymbolName_ },
             { Args::modelName,  completeModelName_ }
         }},
 
         { MP::genEnd, {
-            { Args::id,        completeId_ }
+            { Args::id,         completeId_ }
         }},
         { MP::ref, {
             { Args::single,    completeSingleArg_ },
@@ -124,6 +124,13 @@ awf::Suggestion::Suggestion(const QString& working) : workingFolder(working)
         { MP::nameFunc, {}},
         { MP::moduleName, {}},
         { MP::copyPrompt, {}},
+        { MP::print,{}},
+        { MP::chat,{}},
+        { MP::refFiles,{
+            {Args::fileName,    completeFilePath_},
+            {Args::subDir,      completeBoolean_},
+            {Args::endWith,     completeId_}
+        }}
     };
 }
 

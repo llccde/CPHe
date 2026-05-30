@@ -19,6 +19,7 @@ public:
     void addTab(std::unique_ptr<QWidget> widget, const QString& label = QString());
     QWidget* getCurrent();
     void setCurrent(QWidget*);
+    void setTabTitle(QWidget*, QString title);
 private slots:
     void onTabCloseRequested(int index);
 

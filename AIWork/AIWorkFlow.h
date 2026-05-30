@@ -5,11 +5,20 @@
 #include "Interpreter.h"
 #include <qdir.h>
 #include"FileManager.h"
+#include<qobject.h>
 namespace awf {
     class AIWorkFlow;
+    struct FileBuffer {
+        QString absPath;
+        QString content;
+    };
 }
 
-class awf::AIWorkFlow {
+class awf::AIWorkFlow :public QObject{
+    Q_OBJECT;
+public:
+signals:
+    void outPut(const QString& data);
 public:
     Interpreter fileProcesser;
     ClangTool tool;
@@ -57,7 +66,9 @@ public:
     void debugger();
     void handleGenLable();
     void fillCommand();
+    void chatCommand();
     QString handleRef();
+    QVector<FileBuffer> handleRefFile();
     inline void setWrite(bool v) {
         doWrite = v;
     }
