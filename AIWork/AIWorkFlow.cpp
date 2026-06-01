@@ -8,6 +8,7 @@
 #include"qclipboard.h"
 #include"qapplication.h"
 #include<qdiriterator.h>
+#include"LongCommands.h"
 using namespace awf;
 // AIWorkFlow.cpp
 awf::AIWorkFlow::AIWorkFlow(const QString& working)
@@ -159,37 +160,100 @@ M_Command awf::AIWorkFlow::justNextCommand() {
 }
 
 
-
-void awf::AIWorkFlow::newFileCommand() {
-    while (true) {
-        if (!hasNext()) return;
-        if (hasError()) return;
-        switch (peekNext().type) {
-        case MP::notCommand:
+void AIWorkFlow::newMainLoop() {
+    while (hasNext() && !ec.hasErr()) {
+        next();
+        auto cur = getCurrentCommand();
+        // ---- 处理长指令（isLongOperator 为真） ----
+        if (cur.isLongOperator) {
+            std::unique_ptr<RuntimeCommand> rc;
+            switch (cur.type) {
+            case MP::fill:  rc = std::make_unique<FillCommand>();  break;
+            case MP::chat:  rc = std::make_unique<ChatCommand>();  break;
+            case MP::print: rc = std::make_unique<PrintCommand>(); break;
+            default:
+                ec.riseErr(QString("不支持的长指令类型: %1")
+                    .arg(operatorTypeToString(cur.type)));
+                continue;
+            }
+            rc->aiwf = this;
+            rc->ec = &ec;
+            rc->command = cur;
+            rc->onLaunch();
+            commandStack.push(std::move(rc));
+            continue;
+        }
+        // ---- 处理普通指令 ----
+        // 1) 根节点允许的特殊指令（栈为空）
+        if (commandStack.empty()) {
+            switch (cur.type) {
+            case MP::genBegin:
+                handleGenLable();
+                break;
+            case MP::genEnd:
+                ec.riseErr("未匹配的 @genEnd 标签");
+                break;
+            case MP::debugger:
+                debugger();
+                break;
+            case MP::print:
+                // 非长指令的 @print 直接输出内容
+                emit outPut(cur.arg);
+                break;
+            default:
+                ec.riseWrn(QString("根节点下不支持指令 %1")
+                    .arg(operatorTypeToString(cur.type)));
+                break;
+            }
+            continue;
+        }
+        // 2) 栈非空 → 交给栈顶命令处理
+        auto& top = commandStack.top();
+        switch (cur.type) {
+        case MP::ref: {
+            QString content = handleRef();            // 只获取内容
+            top->onReciveFileContent(content, cur.arg, Role::system);
+            break;
+        }
+        case MP::refFiles: {
+            QVector<FileBuffer> files = handleRefFile();
+            for (const auto& f : files) {
+                top->onReciveFileContent(f.content, getRelativePath(f.absPath), Role::system);
+            }
+            break;
+        }
+        case MP::nameFunc:
+            top->onName(SymbolType::Func, cur.arg);
+            break;
+        case MP::moduleName:
+            top->onModuleName(cur.arg);
+            break;
+        case MP::msg:
         case MP::normalComment:
-            justNextCommand();
+            top->onMessage(cur.arg);
             break;
-        case MP::fill:
-            fillCommand();
+        case MP::copyPrompt:
+            top->onCopyPrompt();
             break;
-        case MP::genBegin:
-            handleGenLable();
+        case MP::end: {
+            top->onFinish();
+            commandStack.pop();
             break;
-        case MP::genEnd:
-            riseError("未匹配的 @genEnd 标签");
-            return;
-        case MP::debugger:
-            debugger();
-            break;
-        case MP::print: {
-            printCommand();
         }
-
         default:
-            riseWarn("不支持 其他指令标记 在 文档根节点下");
-            justNextCommand();
+            ec.riseWrn(QString("长指令内部暂不支持的指令: %1")
+                .arg(operatorTypeToString(cur.type)));
             break;
         }
+    }
+    // 文件结束时栈仍未空 → 缺少 @end
+    if (!commandStack.empty()) {
+        QStringList names;
+        while (!commandStack.empty()) {
+            names << operatorTypeToString(commandStack.top()->command.type);
+            commandStack.pop();
+        }
+        ec.riseErr(QString("文件结尾处未闭合的长指令:\n%1").arg(names.join("\n")));
     }
 }
 
@@ -237,238 +301,6 @@ void awf::AIWorkFlow::handleGenLable() {
     }
 }
 
-void awf::AIWorkFlow::fillCommand() {
-    next();
-    int row = getCurrentIndex();
-    auto genID = getGenId();
-    auto cur = getCurrentCommand();
-
-    enum Named { Class, Func, NotNamed } namedState = NotNamed;
-    QString nameSymbol;
-    (void)nameSymbol; // 避免未使用变量警告
-
-    QString modelName = "";
-    QVector<ChatMessage> promot;
-    ChatMessage userMessage = {user, ""};
-    userMessage.message.append(cur.arg);
-    promot.append({ system,"编写的代码务必使用```cpp和 ``` 包裹" });
-    if (cur.isLongOperator) {
-        bool findEnd = false;
-        while (!findEnd) {
-            if (!hasNext()) {
-                riseWarn("文件结尾处未闭合的 长指令标记");
-                break;
-            }
-            switch (peekNext().type) {
-            case MP::ref: {
-                auto data = handleRef();
-                promot.append({system,"参考定义:\n"+data});
-                break;
-            }
-            case MP::refFiles: {
-                auto data = handleRefFile();
-                for (auto& i : data)
-                {
-                    promot.append({ system,QString("文件%1:\n%2").arg(getRelativePath(i.absPath)).arg(i.content) });
-                }
-                break;
-            }
-            case MP::msg:
-            case MP::normalComment: {
-                auto text = justNextCommand();
-                userMessage.message.append(text.arg);
-                break;
-            }
-            case MP::nameFunc: {
-                if (namedState == NotNamed) {
-                    auto name = justNextCommand();
-                    promot.append({system,QString("用户指定生成的函数必须名为\"%1\",不要有任何不同").arg(name.arg)});
-                    nameSymbol = name.arg;
-                    namedState = Func;
-                }
-                else {
-                    riseWarn("只能指定一个代码符号的名称");
-                    justNextCommand();
-                }
-                break;
-            }
-            case MP::moduleName: {
-                modelName = justNextCommand().arg;
-                break;
-            }
-            case MP::end:
-                findEnd = true;
-                justNextCommand();
-                break;
-            case MP::copyPrompt:{
-                justNextCommand();
-                QVector<QString> data;
-                for (auto& i:promot)
-                {
-                    data.append(i.toString());
-                }
-                data.append(userMessage.toString());
-                QApplication::clipboard()->setText(data.join("\n"));
-                break;
-            }
-            default:
-                riseWarn("在@fill 长指令标记 区间内,除去@ref,@end,不支持任何其他指令");
-                justNextCommand();
-                break;
-            }
-        }
-    }
-    QVector<QString> args;
-    args.append("op = fill");
-    args.append("id = genID");
-    if (!nameSymbol.isEmpty()) {
-        args.append("symbolName = " + nameSymbol);
-    }
-    if (!modelName.isEmpty()) {
-        args.append("modelName = " + modelName);
-    }
-    promot.append(userMessage);
-    writeComment("@genBegin,"+args.join(","));
-    // 注意：原代码中使用了未定义的 'user'，此处保持原样
-    auto data = extractLineBase("```cpp", "```", aic.getGen(promot, genFunc).split("\n"));
-    for (auto&s:data)
-    {
-        writeSource(s);
-    }
-    
-    writeComment("@genEnd,id=" + genID);
-}
-
-void awf::AIWorkFlow::chatCommand() {
-    next();
-    int row = getCurrentIndex();
-    auto cur = getCurrentCommand();
-
-    QVector<ChatMessage> promot;
-    ChatMessage userMessage = { user, "" };
-    userMessage.message.append(cur.arg);
-    if (cur.isLongOperator) {
-        bool findEnd = false;
-        while (!findEnd) {
-            if (!hasNext()) {
-                riseWarn("文件结尾处未闭合的 长指令标记");
-                break;
-            }
-            switch (peekNext().type) {
-            case MP::ref: {
-                auto data = handleRef();
-                promot.append({ user, data });
-                break;
-            }
-            case MP::msg:
-            case MP::normalComment: {
-                auto text = justNextCommand();
-                userMessage.message.append(text.arg);
-                break;
-            }
-            case MP::end:
-                findEnd = true;
-                justNextCommand();
-                break;
-            case MP::copyPrompt: {
-                justNextCommand();
-                QVector<QString> data;
-                for (auto& i : promot)
-                {
-                    data.append(i.toString());
-                }
-                data.append(userMessage.toString());
-                QApplication::clipboard()->setText(data.join("\n"));
-                break;
-            }
-            case MP::refFiles: {
-                auto data = handleRefFile();
-                for (auto&i:data)
-                {
-                    promot.append({ system,QString("文件%1:\n%2").arg(getRelativePath(i.absPath)).arg(i.content)});
-                }
-                break;
-            }
-            default:
-                riseWarn("在@chat 长指令标记 区间内,除去@ref,@end,不支持任何其他指令");
-                justNextCommand();
-                break;
-            }
-        }
-    }
-    promot.append(userMessage);
-    auto data =aic.getGen(promot);
-    emit outPut(data);
-}
-void awf::AIWorkFlow::printCommand()
-{
-    next();
-    int row = getCurrentIndex();
-    auto cur = getCurrentCommand();
-    if (!cur.isLongOperator) {
-        emit outPut(cur.arg);
-        return;
-    }
-    QVector<ChatMessage> promot;
-    ChatMessage userMessage = { user, "" };
-    userMessage.message.append(cur.arg);
-    if (cur.isLongOperator) {
-        bool findEnd = false;
-        while (!findEnd) {
-            if (!hasNext()) {
-                riseWarn("文件结尾处未闭合的 长指令标记");
-                break;
-            }
-            switch (peekNext().type) {
-            case MP::ref: {
-                auto data = handleRef();
-                promot.append({ user, data });
-                break;
-            }
-            case MP::msg:
-            case MP::normalComment: {
-                auto text = justNextCommand();
-                userMessage.message.append(text.arg);
-                break;
-            }
-            case MP::end:
-                findEnd = true;
-                justNextCommand();
-                break;
-            case MP::copyPrompt: {
-                justNextCommand();
-                QVector<QString> data;
-                for (auto& i : promot)
-                {
-                    data.append(i.toString());
-                }
-                data.append(userMessage.toString());
-                QApplication::clipboard()->setText(data.join("\n"));
-                break;
-            }
-            case MP::refFiles: {
-                auto data = handleRefFile();
-                for (auto& i : data)
-                {
-                    promot.append({ system,QString("文件%1:\n%2").arg(getRelativePath(i.absPath)).arg(i.content) });
-                }
-                break;
-            }
-            default:
-                riseWarn("在@print 长指令标记 区间内,除去@ref,@end,不支持任何其他指令");
-                justNextCommand();
-                break;
-            }
-        }
-    }
-    promot.append(userMessage);
-    for (auto&i:promot)
-    {
-        emit outPut(QString("%1:\n%2").arg(roleToString(i.role)).arg(i.message));
-    }
-
-
-}
 QString awf::AIWorkFlow::handleRef()
 {
     next();  // 移动到当前 @ref 指令
@@ -707,15 +539,11 @@ QVector<FileBuffer> awf::AIWorkFlow::handleRefFile()
 }
 
 
-
-void awf::AIWorkFlow::launch(const QString& filePath, const QString& outPath) {
+void AIWorkFlow::launch(const QString& filePath, const QString& outPath) {
     prepareLaunch(filePath, outPath, -1);
-    
-    newFileCommand();
-
-    if (!hasError()&&doWrite)
+    newMainLoop();   
+    if (!hasError() && doWrite)
         replaceWithFileBufferAndBackup(getAbsPath(filePath), getAbsPath(outPath));
-    
 }
 
 void awf::AIWorkFlow::prepareLaunch(const QString& filePath, const QString& outPath, int beginRow)
@@ -765,6 +593,3 @@ void AIWorkFlow::replaceWithFileBufferAndBackup(const QString& filePath, const Q
 
     fileManeger.writeTo(targetPath);
 }   
-class Command{
-    QHash<M_OperatorType, std::function<void(M_Command&)>> switchCase;
-};
