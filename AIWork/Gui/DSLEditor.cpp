@@ -218,7 +218,16 @@ QStringList DSLEditor::getCompletionSuggestions(awf::TreeNode* node)
     case awf::TreeNode::CommandOperator:
         // 正在输入操作符，继续补全操作符本身
         return sug.getOperator(node->text.trimmed());
-
+    case awf::TreeNode::SingleArg:{
+        TreeNode* cmd = node->getParentOfType(TreeNode::Command);
+        if (cmd->isValid) {
+            TreeNode* op = cmd->getChildOfType(TreeNode::CommandOperator);
+            if (op->isValid) {
+                return sug.getArgValue(op->text.trimmed(),ArgsClass::toString(Args::single), node->text);
+            }
+        }
+        break;
+    }
     case awf::TreeNode::ArgList:
     {
         // 获取所属 Command，并取出其中的操作符节点
@@ -260,10 +269,6 @@ QStringList DSLEditor::getCompletionSuggestions(awf::TreeNode* node)
         }
         break;
     }
-
-    case awf::TreeNode::SingleArg:
-        suggestions << "example" << "description";
-        break;
 
     case awf::TreeNode::Error:
         suggestions << "@fill" << "@msg";

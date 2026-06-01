@@ -19,6 +19,11 @@ QString awf::AIWorkFlow::getAbsPath(const QString& path) {
     return QDir(workingFolder).absoluteFilePath(path);
 }
 
+QString awf::AIWorkFlow::getRelativePath(const QString& path)
+{
+    return QDir(workingFolder).relativeFilePath(path);
+}
+
 QString awf::AIWorkFlow::readKey(QString key) {
     QFile f(getAbsPath(key));
     if (f.exists() && !f.atEnd()) {
@@ -177,8 +182,7 @@ void awf::AIWorkFlow::newFileCommand() {
             debugger();
             break;
         case MP::print: {
-            auto c = justNextCommand();
-            emit outPut(c.arg);
+            printCommand();
         }
 
         default:
@@ -259,6 +263,14 @@ void awf::AIWorkFlow::fillCommand() {
             case MP::ref: {
                 auto data = handleRef();
                 promot.append({system,"参考定义:\n"+data});
+                break;
+            }
+            case MP::refFiles: {
+                auto data = handleRefFile();
+                for (auto& i : data)
+                {
+                    promot.append({ system,QString("文件%1:\n%2").arg(getRelativePath(i.absPath)).arg(i.content) });
+                }
                 break;
             }
             case MP::msg:
@@ -370,7 +382,12 @@ void awf::AIWorkFlow::chatCommand() {
                 break;
             }
             case MP::refFiles: {
-                
+                auto data = handleRefFile();
+                for (auto&i:data)
+                {
+                    promot.append({ system,QString("文件%1:\n%2").arg(getRelativePath(i.absPath)).arg(i.content)});
+                }
+                break;
             }
             default:
                 riseWarn("在@chat 长指令标记 区间内,除去@ref,@end,不支持任何其他指令");
@@ -379,9 +396,78 @@ void awf::AIWorkFlow::chatCommand() {
             }
         }
     }
-
+    promot.append(userMessage);
     auto data =aic.getGen(promot);
     emit outPut(data);
+}
+void awf::AIWorkFlow::printCommand()
+{
+    next();
+    int row = getCurrentIndex();
+    auto cur = getCurrentCommand();
+    if (!cur.isLongOperator) {
+        emit outPut(cur.arg);
+        return;
+    }
+    QVector<ChatMessage> promot;
+    ChatMessage userMessage = { user, "" };
+    userMessage.message.append(cur.arg);
+    if (cur.isLongOperator) {
+        bool findEnd = false;
+        while (!findEnd) {
+            if (!hasNext()) {
+                riseWarn("文件结尾处未闭合的 长指令标记");
+                break;
+            }
+            switch (peekNext().type) {
+            case MP::ref: {
+                auto data = handleRef();
+                promot.append({ user, data });
+                break;
+            }
+            case MP::msg:
+            case MP::normalComment: {
+                auto text = justNextCommand();
+                userMessage.message.append(text.arg);
+                break;
+            }
+            case MP::end:
+                findEnd = true;
+                justNextCommand();
+                break;
+            case MP::copyPrompt: {
+                justNextCommand();
+                QVector<QString> data;
+                for (auto& i : promot)
+                {
+                    data.append(i.toString());
+                }
+                data.append(userMessage.toString());
+                QApplication::clipboard()->setText(data.join("\n"));
+                break;
+            }
+            case MP::refFiles: {
+                auto data = handleRefFile();
+                for (auto& i : data)
+                {
+                    promot.append({ system,QString("文件%1:\n%2").arg(getRelativePath(i.absPath)).arg(i.content) });
+                }
+                break;
+            }
+            default:
+                riseWarn("在@print 长指令标记 区间内,除去@ref,@end,不支持任何其他指令");
+                justNextCommand();
+                break;
+            }
+        }
+    }
+    promot.append(userMessage);
+    for (auto&i:promot)
+    {
+        emit outPut(QString("%1:\n%2").arg(roleToString(i.role)).arg(i.message));
+    }
+
+
 }
 QString awf::AIWorkFlow::handleRef()
 {

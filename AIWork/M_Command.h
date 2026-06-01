@@ -54,7 +54,9 @@ namespace awf {
 			//refFiles
 			endWith,//like"txt|cpp|json"
 			subDir,//false or true ,表示是否递归处理所有子目录
-			baseFolder//搜索范围的根目录
+			baseFolder,//搜索范围的根目录
+
+			refThis
 
 		};
 		Q_ENUM(Arg)         // 向元对象系统注册枚举

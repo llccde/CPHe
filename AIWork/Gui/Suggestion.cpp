@@ -100,12 +100,13 @@ awf::Suggestion::Suggestion(const QString& working) : workingFolder(working)
             { Args::id,         completeId_ }
         }},
         { MP::ref, {
-            { Args::single,    completeSingleArg_ },
+            { Args::single,    completeFilePath_ },
             { Args::file,      completeFilePath_ },
             { Args::callLLM,   completeBoolean_ },
             { Args::cache,     completeBoolean_ },
             { Args::symbol,    completeSymbol_ },
-            { Args::msg,       completeMessage_ }
+            { Args::msg,       completeMessage_ },
+            { Args::refThis,   completeBoolean_}
         }},
         { MP::record, {
             { Args::symbol,    completeSymbol_ },
@@ -127,7 +128,7 @@ awf::Suggestion::Suggestion(const QString& working) : workingFolder(working)
         { MP::print,{}},
         { MP::chat,{}},
         { MP::refFiles,{
-            {Args::fileName,    completeFilePath_},
+            {Args::baseFolder,    completeFilePath_},
             {Args::subDir,      completeBoolean_},
             {Args::endWith,     completeId_}
         }}
