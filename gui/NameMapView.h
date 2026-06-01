@@ -19,10 +19,7 @@ class NameMapView : public QWidget
 	Q_OBJECT
 private:
 	std::unique_ptr<LanguageBackend> backend;
-	//std::unique_ptr<CodeListModel> codeModel;
-	//std::unique_ptr<NameViewTreeModel> dataModel;
-	//SignalUniquePtr<NameMapResPack> nameMap;
-	//std::unique_ptr<LibClangContext> clangContext;
+
 	std::unique_ptr<HighlightDelegateOfQString> loadedFileDelegate;
 	QStringListModel loadedFileModel;
 	QStringList loadedFile;

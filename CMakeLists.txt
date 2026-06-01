@@ -14,6 +14,7 @@ find_package(Qt${QT_VERSION_MAJOR}
         Core
         Gui
         Widgets
+        Network
 )
 qt_standard_project_setup()
 
@@ -50,9 +51,11 @@ set(ROOT_SOURCES
 qt_add_executable(${PROJECT_NAME} ${ROOT_SOURCES})
 
 # 添加子目录
-add_subdirectory(gui)
-add_subdirectory(code)
-add_subdirectory(GUIInterface)
+#add_subdirectory(gui)
+#add_subdirectory(code)
+#add_subdirectory(GUIInterface)
+#add_subdirectory(workFlow)
+add_subdirectory(AIWork)
 # 目标属性
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
@@ -75,4 +78,5 @@ target_link_libraries(${PROJECT_NAME}
         Qt::Core
         Qt::Gui
         Qt::Widgets
+        Qt::Network
 )

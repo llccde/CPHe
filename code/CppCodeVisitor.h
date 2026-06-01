@@ -38,6 +38,7 @@ public:
 
     explicit CodeScope(const CXCursor& cursor, QStringPool* pool);
     bool operator==(const CodeScope& other) const;
+
     bool contains(const CodeScope& other) const;
     bool isCrossFileScope() const;
     QString toString() const;
@@ -157,3 +158,17 @@ private:
 
     void preOrderDFS_NameMapBuild(NameMapNode* parent, CodeNode* _this,QStringPool* pool, std::map<QStringPtrKeyWrapper, NameMapNode*>&);
 };
+namespace na {
+    class a {
+    public:
+        int b(int e);
+        int c(int d);
+    };
+    namespace na2 {
+        int a::b(int e) {
+        
+        }
+    }
+    int a::c(int d) {
+    }
+}

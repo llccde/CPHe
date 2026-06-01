@@ -1,49 +1,32 @@
-﻿#include "gui/CPHeMain.h"
+﻿//#include "gui/CPHeMain.h"
 #include <QtWidgets/QApplication>
-#include "code/CodeAnalyzer.h"
-#include"gui/NameMapView.h"
-// libclang 头文件
-#include <clang-c/Index.h>
-#include <iostream>
-#include<qfile.h>
+
+#include"AIWork/AIWorkFlow.h"
+#include"AIWork/Gui/DSLEditor.h"
+#include"AIWork/Gui/TheMainWindow.h"
+#include"AIWork/Gui/EditorsTabView.h"
+#include"AIWork/Gui/FileView.h"
+#include"AIWork/Gui/OutPutView.h"
+#include<qdebug.h>
+#include<iostream>
+#include"AIWork/BaseTool.h"
+#include <QFile>
+#include <QTextStream>
+#include <QString>
+#include<qfiledialog.h>
+#include"qobject.h"
+#include"qfileinfo.h"
+#include"qset.h"
 #include<qmessagebox.h>
-#include<qlist.h>
-#include<qvector.h>
-#include<vector>
-#include"code/CodeFileReader.h"
-#include"code/CppCodeFileReader.h"
-#include"libClangContext.h"
-#include"NameTree.h"
-#include"CppCodeVisitor.h"
-#include"QFileReader.h"
-#include"MainClass.h"
+#include<qdir.h>
+#include<qsettings.h>
+#include<qthread.h>
+#include<functional>
+#include"AIWork/Workbench.h"
+
 int main(int argc, char* argv[])
 {
-    
-    
-    //std::unique_ptr<LibClangContext> cntext(new LibClangContext());
-    //auto a = CodeAnalyzer(cntext.get());
-    //cntext->addFile(UniqueFilePtr(new QFileReader("E:\\cpp\\qt\\CPHe\\code\\testclass.cpp")),
-    //    LibClangContext::isMainFile
-    //);
-    //std::unique_ptr<CPPCodeVisitor> visitor (new CPPCodeVisitor());
-    //a.launch(visitor.get());
-    //
-    //auto d = visitor->getNameMap()->findNodeByNameSpaceCallOnRoot("myName::myClass::func2");
-    //auto d2 = visitor->getNameMap()->findNodeByNameSpaceCallOnRoot("myName::myClass");
-    //for (auto &i:d)
-    //{
-    //    CppCodeFileReader cfr(true, i->getPosition(), 4);
-    //    for (size_t i = 0; i < cfr.getRowCount(); i++)
-    //    {
-    //        std::cout << cfr.readLine(i).toStdString() << "\n";
-    //    }
-    //    
-
-    //}
     QApplication app(argc, argv);
-    MainClass mainClass;
-    mainClass.showAll();
-
+    Workbench bench(app);   // 在构造函数中完成全部初始化
     return app.exec();
 }

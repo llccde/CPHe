@@ -1,0 +1,1 @@
+把pscVar的segmType合并到vartype里面ss      dsadsadsadasdwa
