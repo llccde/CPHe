@@ -14,8 +14,7 @@ void FillCommand::onFinish() {
     prompt.append(promote);
     auto rawReply = aiwf->aic.getGen(prompt, genFunc);
     auto codeLines = extractLineBase("```cpp", "```", rawReply.split("\n"));
-    aiwf->fileManeger.removeFromTo(beginRow, endRow);
-    aiwf->index = beginRow - 1;
+
     aiwf->writeComment("@genBegin,id=" + genId);
     for (const QString& line : codeLines) {
         aiwf->writeSource(line);

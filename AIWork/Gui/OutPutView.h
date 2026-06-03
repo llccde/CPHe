@@ -2,6 +2,7 @@
 
 #include <QWidget>
 #include <QMap>
+#include <QSet>
 #include "ui_OutPutView.h"
 
 QT_BEGIN_NAMESPACE
@@ -40,8 +41,7 @@ private slots:
 private:
     Ui::OutPutViewClass* ui;
     QMap<int, IOController*> m_pages;       // id → 页面对象
-    QMap<int, int> m_idToIndex;             // id → tab索引
-    QMap<int, int> m_indexToId;             // tab索引 → id
+    QMap<IOController*, int> m_pageToId;    // 页面对象 → id（反向映射）
     QSet<int> m_finishedIds;                // 已完成页面的 ID 集合
     int m_nextId = 0;                       // 下一个可用 ID
 };

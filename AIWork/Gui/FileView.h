@@ -2,7 +2,7 @@
 
 #include <QWidget>
 #include "ui_FileView.h"
-
+#include<qfileinfo.h>
 class QFileSystemModel;
 class QSortFilterProxyModel;
 
@@ -21,8 +21,16 @@ signals:
 
 private slots:
     void onTreeViewDoubleClicked(const QModelIndex& index);
+    void onCustomContextMenu(const QPoint& pos);
+
+
 
 private:
+    // 根据代理索引获取对应的源文件信息（自动映射）
+    QFileInfo fileInfoFromIndex(const QModelIndex& proxyIndex) const;
+    // 显示简单的错误对话框
+    void showError(const QString& message) const;
+
     Ui::FileViewClass ui;
     QFileSystemModel* m_fileSystemModel;      // 源模型
     QSortFilterProxyModel* m_proxyModel;      // 排序代理模型

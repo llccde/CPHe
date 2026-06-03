@@ -7,6 +7,7 @@
 #include <qobject.h>
 #include <QStack>
 #include <memory>
+#include<stack>
 namespace awf {
     class RuntimeCommand;
     class AIWorkFlow;
@@ -19,7 +20,9 @@ namespace awf {
 
     class AIWorkFlow : public QObject {
         Q_OBJECT
-    public:
+    private:
+        int index = -1;
+        int genId = 0;
     signals:
         void outPut(const QString& data);
 
@@ -35,8 +38,7 @@ namespace awf {
         QString getRelativePath(const QString& path);
         AIWorkFlow(const QString& working);
 
-        int index = -1;
-        int genId = 0;
+        
 
         QString readKey(QString key = "key.txt");
         QString getGenId();
@@ -79,7 +81,7 @@ namespace awf {
         void prepareLaunch(const QString& filePath, const QString& outPath, int beginRow = -1);
 
         // 命令栈
-        QStack<std::unique_ptr<RuntimeCommand>> commandStack;
+        std::stack<std::unique_ptr<RuntimeCommand>> commandStack;
 
         // 新主循环（替换原 newFileCommand）
         void newMainLoop();

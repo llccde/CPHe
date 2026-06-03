@@ -31,7 +31,7 @@ public:
         const QString& path,
         Role role = Role::system) {
         if (ec)
-            ec->riseErr(QString("不支持在长指令 '@%1' 内使用 %2")
+            ec->Err(QString("不支持在长指令 '@%1' 内使用 %2")
                 .arg(operatorTypeToString(command.type))
                 .arg("文件引用"));
     }
@@ -39,28 +39,28 @@ public:
     // 收到命名要求（@nameFunc / @nameClass）
     virtual void onName(SymbolType type, const QString& name) {
         if (ec)
-            ec->riseErr(QString("不支持在长指令 '@%1' 内使用命名功能")
+            ec->Err(QString("不支持在长指令 '@%1' 内使用命名功能")
                 .arg(operatorTypeToString(command.type)));
     }
 
     // 收到用户消息（@msg / 普通注释）
     virtual void onMessage(const QString& msg) {
         if (ec)
-            ec->riseErr(QString("不支持在长指令 '@%1' 内使用消息")
+            ec->Err(QString("不支持在长指令 '@%1' 内使用消息")
                 .arg(operatorTypeToString(command.type)));
     }
 
     // 设置模型名称
     virtual void onModuleName(const QString& name) {
         if (ec)
-            ec->riseErr(QString("不支持在长指令 '@%1' 内指定模型")
+            ec->Err(QString("不支持在长指令 '@%1' 内指定模型")
                 .arg(operatorTypeToString(command.type)));
     }
 
     // 将当前 prompt 复制到剪贴板
     virtual void onCopyPrompt() {
         if (ec)
-            ec->riseErr(QString("不支持在长指令 '@%1' 内复制 prompt")
+            ec->Err(QString("不支持在长指令 '@%1' 内复制 prompt")
                 .arg(operatorTypeToString(command.type)));
     }
 };

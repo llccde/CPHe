@@ -139,11 +139,11 @@ void awf::AIWorkFlow::writeFile(const QVector<QString>& data, int index) {
 }
 
 void awf::AIWorkFlow::riseWarn(const QString& wrn) {
-    ec.riseWrn(wrn);
+    ec.Wrn(wrn);
 }
 
 void awf::AIWorkFlow::riseError(const QString& err) {
-    ec.riseErr(err);
+    ec.Err(err);
 }
 
 bool awf::AIWorkFlow::hasError() {
@@ -172,7 +172,7 @@ void AIWorkFlow::newMainLoop() {
             case MP::chat:  rc = std::make_unique<ChatCommand>();  break;
             case MP::print: rc = std::make_unique<PrintCommand>(); break;
             default:
-                ec.riseErr(QString("不支持的长指令类型: %1")
+                ec.Err(QString("不支持的长指令类型: %1")
                     .arg(operatorTypeToString(cur.type)));
                 continue;
             }
@@ -191,7 +191,7 @@ void AIWorkFlow::newMainLoop() {
                 handleGenLable();
                 break;
             case MP::genEnd:
-                ec.riseErr("未匹配的 @genEnd 标签");
+                ec.Err("未匹配的 @genEnd 标签");
                 break;
             case MP::debugger:
                 debugger();
@@ -200,8 +200,10 @@ void AIWorkFlow::newMainLoop() {
                 // 非长指令的 @print 直接输出内容
                 emit outPut(cur.arg);
                 break;
+            case MP::normalComment:
+                break;
             default:
-                ec.riseWrn(QString("根节点下不支持指令 %1")
+                ec.Wrn(QString("根节点下不支持指令 %1")
                     .arg(operatorTypeToString(cur.type)));
                 break;
             }
@@ -241,7 +243,7 @@ void AIWorkFlow::newMainLoop() {
             break;
         }
         default:
-            ec.riseWrn(QString("长指令内部暂不支持的指令: %1")
+            ec.Wrn(QString("长指令内部暂不支持的指令: %1")
                 .arg(operatorTypeToString(cur.type)));
             break;
         }
@@ -253,20 +255,18 @@ void AIWorkFlow::newMainLoop() {
             names << operatorTypeToString(commandStack.top()->command.type);
             commandStack.pop();
         }
-        ec.riseErr(QString("文件结尾处未闭合的长指令:\n%1").arg(names.join("\n")));
+        ec.Err(QString("文件结尾处未闭合的长指令:\n%1").arg(names.join("\n")));
     }
 }
 
 void awf::AIWorkFlow::debugger() {
     auto current = getCurrentCommand();
-    next();
     auto next = peekNext();
     (void)current; (void)next; // 避免未使用变量警告
     return;
 }
 
 void awf::AIWorkFlow::handleGenLable() {
-    next();
     int begin = getCurrentIndex();
     auto _this = getCurrentCommand();
     bool findEnd = false;
@@ -295,7 +295,7 @@ void awf::AIWorkFlow::handleGenLable() {
             break;
         }
         default:
-            break;
+            justNextCommand();
         }
         if (findEnd) break;
     }
@@ -303,7 +303,6 @@ void awf::AIWorkFlow::handleGenLable() {
 
 QString awf::AIWorkFlow::handleRef()
 {
-    next();  // 移动到当前 @ref 指令
     auto _this = getCurrentCommand();
     assert(_this.type == MP::ref);
     // 简单形式：@ref:some/path
@@ -474,7 +473,6 @@ QString awf::AIWorkFlow::handleRef()
 
 QVector<FileBuffer> awf::AIWorkFlow::handleRefFile()
 {
-    next();  // 移动到当前 @refFile 指令
     auto _this = getCurrentCommand();
 
     // ---------- 解析参数 ----------
@@ -551,7 +549,7 @@ void awf::AIWorkFlow::prepareLaunch(const QString& filePath, const QString& outP
     fileProcesser.loadFile(getAbsPath(filePath));
     aic.setBase("https://api.deepseek.com", getFirstLine("E:\\cpp\\qt\\CPHe\\key.txt"), "deepseek-v4-flash", AIClient::deepSeek);
     aic.set_deepSeek_thinking(false );
-    fileManeger = LineBaseFileManager(filePath);
+    fileManeger = LineBaseFileManager(getAbsPath(filePath));
     index = beginRow;
 }
 
@@ -580,6 +578,8 @@ void AIWorkFlow::replaceWithFileBufferAndBackup(const QString& filePath, const Q
         // 若原文件存在则创建 .bak 备份；若不存在则无需备份（直接写入即可）
         if (QFile::exists(absSrcPath)) {
             QString backupPath = absSrcPath + ".bak";
+            if (QFile::exists(backupPath))
+                QFile::remove(backupPath);  // 删除旧备份
             if (!QFile::copy(absSrcPath, backupPath)) {
                 riseError("无法创建备份文件：" + backupPath);
                 return;

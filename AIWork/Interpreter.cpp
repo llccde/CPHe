@@ -11,7 +11,7 @@ Interpreter::~Interpreter() {
 }
 
 void Interpreter::riseWarning(const QString& wrn) {
-    ec.riseWrn(wrn);
+    ec.Wrn(wrn);
 }
 
 void Interpreter::setNodePos(TreeNode* node, int row, int colStart, int length) {

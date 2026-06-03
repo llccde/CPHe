@@ -1,1 +1,1 @@
-把pscVar的segmType合并到vartype里面ss      dsadsadsadasdwa
+﻿修复bug:commentTool移除行首注释符号导致语法符号在源代码中位置出现偏移

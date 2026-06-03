@@ -4,9 +4,11 @@
 #include <QString>
 #include <QDebug>
 #include"M_Command.h"
+
+//@RCFileName 
 namespace awf {
 
-
+    
     class CommentTool {
     public:
     QVector<LineInfo> analyzeFile(const QString & filePath,

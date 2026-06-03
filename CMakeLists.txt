@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.16)
-project(CPHe LANGUAGES CXX)
+project(cphe LANGUAGES CXX)
 cmake_policy(SET CMP0077 NEW)
 variable_watch(CMAKE_MSVC_RUNTIME_LIBRARY)
 include(qt.cmake)
@@ -56,6 +56,7 @@ qt_add_executable(${PROJECT_NAME} ${ROOT_SOURCES})
 #add_subdirectory(GUIInterface)
 #add_subdirectory(workFlow)
 add_subdirectory(AIWork)
+add_subdirectory(RCTool)
 # 目标属性
 set_target_properties(${PROJECT_NAME}
     PROPERTIES

@@ -12,7 +12,7 @@ LaunchTask::LaunchTask(const QString& path, const QString& folder, OutputView* o
     , m_outputView(outputView)
 {
     m_outputId = m_outputView->launch(QFileInfo(path).fileName());
-    m_outFileName = "result_" + QFileInfo(path).fileName();
+    m_outFileName = QFileInfo(path).fileName();
 }
 
 LaunchTask::~LaunchTask()
@@ -60,7 +60,7 @@ void LaunchTask::onStarted()
 {
     QString fileName = QFileInfo(m_path).fileName();
     m_workflow->launch(fileName, m_outFileName);
-    if (m_workflow->ec.hasErr())
+    if (m_workflow->ec.hasSometing())
         emit m_workflow->outPut(m_workflow->ec.toString());
     else
         emit m_workflow->outPut("task done");

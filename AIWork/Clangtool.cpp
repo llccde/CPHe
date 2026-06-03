@@ -386,7 +386,7 @@ QVector<QString> ClangTool::getSymbolDef(const QString& code, const QString& sym
     // 初始化 libclang 索引
     CXIndex index = clang_createIndex(1, 1);
     if (!index) {
-        ec.riseErr(QString("Failed to create libclang index"));
+        ec.Err(QString("Failed to create libclang index"));
         return results;
     }
     auto byte = fileName.toUtf8();
@@ -411,7 +411,7 @@ QVector<QString> ClangTool::getSymbolDef(const QString& code, const QString& sym
 
     if (!tu) {
         clang_disposeIndex(index);
-        ec.riseErr(QString("Failed to parse translation unit"));
+        ec.Err(QString("Failed to parse translation unit"));
         return results;
     }
 
@@ -425,11 +425,11 @@ QVector<QString> ClangTool::getSymbolDef(const QString& code, const QString& sym
 
         CXDiagnosticSeverity severity = clang_getDiagnosticSeverity(diag);
         if (severity >= CXDiagnostic_Error) {
-            ec.riseErr(msg);
+            ec.Err(msg);
             
         }
         else if (severity >= CXDiagnostic_Warning) {
-            ec.riseWrn(msg);
+            ec.Wrn(msg);
         }
 
         clang_disposeString(diagStr);
@@ -453,7 +453,7 @@ QVector<QString> ClangTool::getSymbolDef(const QString& code, const QString& sym
     clang_visitChildren(rootCursor, getSymbolDefVisitCursor, &visitorData);
 
     if (visitorData.hadError) {
-        ec.riseWrn(QString("Errors occurred while traversing AST, partial results may be returned"));
+        ec.Wrn(QString("Errors occurred while traversing AST, partial results may be returned"));
     }
 
     // 清理资源

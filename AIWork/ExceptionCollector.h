@@ -8,15 +8,19 @@ namespace awf {
 		QVector<QString> wrns;
 		QVector<QString> msgs;
 	public:
-		void riseErr(const QString& err) {
+		void Err(const QString& err) {
 			errs.append(err);
+			
 		}
 
 		bool hasErr() const {
 			return !errs.empty();
 		}
+		bool hasSometing()const {
+			return !errs.empty() || !wrns.empty() || !msgs.empty();
+		}
 
-		void riseWrn(const QString& wrn) {
+		void Wrn(const QString& wrn) {
 			wrns.append(wrn);
 		}
 
@@ -24,7 +28,7 @@ namespace awf {
 			return !wrns.empty();
 		}
 
-		void riseMsg(const QString& msg) {
+		void Msg(const QString& msg) {
 			msgs.append(msg);
 		}
 

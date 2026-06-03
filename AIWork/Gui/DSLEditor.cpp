@@ -45,6 +45,9 @@ DSLEditor::DSLEditor(QWidget* parent)
     // 文本改变时直接进行统一的解析、高亮与补全
     connect(ui->textEdit, &QTextEdit::textChanged,
         this, &DSLEditor::processTextUpdate);
+    QFontMetrics fm(ui->textEdit->font());
+    int spaceWidth = fm.horizontalAdvance(' ');          // 单个空格的像素宽度
+    ui->textEdit->setTabStopDistance(spaceWidth * 4);          // 4 个空格
 }
 
 DSLEditor::~DSLEditor()
